@@ -10,12 +10,12 @@ This is the AWS CI/CD pipeline files for sds-qa-airflow
 ## Source
         - Source files are taken from AWS CodeCommit
         - We have 2 sources for airflow
-        **Source 1 - Primary**
-            - Set "Source provider" as "AWS CodeCommit"
-            - Set "Repository" to <source repository name>. Here it is "sds-orchestration"
-            - Choose "Reference type" as "Branch", since we are taking source version reference type that contains the source code as git branch
-            - Choose the branch name of the source repository
-            - Keep the rest of the configurations as default
+        > **Source 1 - Primary**
+            > - Set "Source provider" as "AWS CodeCommit"
+            > - Set "Repository" to <source repository name>. Here it is "sds-orchestration"
+            > - Choose "Reference type" as "Branch", since we are taking source version reference type that contains the source code as git branch
+            > - Choose the branch name of the source repository
+            > - Keep the rest of the configurations as default
         __Source 2__
             - Specify the "Source identifier" for Source 2 as "sdsconfig"
             - Set "Source provider" as "AWS CodeCommit"
