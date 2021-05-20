@@ -1,0 +1,9 @@
+---
+- hosts: cear
+  become: true
+  become_method: sudo
+  gather_facts: no
+  roles:
+    - role: Apache2
+    - role: apache-app-config
+    - role: otherpackages

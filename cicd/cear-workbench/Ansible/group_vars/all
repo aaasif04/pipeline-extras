@@ -1,0 +1,4 @@
+---
+## Variables that need in all the roles will be defined in this section ##
+#This temporary Location where the specified build will be copied from Artifactory.
+temp_dir: /tmp/cear-workbench-build/

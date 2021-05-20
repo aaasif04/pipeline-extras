@@ -1,0 +1,12 @@
+---
+keycloak_version: 11.0.2
+keycloak_mirror: https://downloads.jboss.org/keycloak/
+source_dir: /usr/local/src
+mysql_connector_url: https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.49.tar.gz
+keycloak_download_url: "{{ keycloak_mirror }}/{{ keycloak_version }}/keycloak-{{ keycloak_version }}.tar.gz"
+mysql_connector_tarfile: "{{ mysql_connector_url | basename }}"
+connector_version: '{{ mysql_connector_tarfile.split(''.tar.gz'')[0].split("-")[3] }}'
+#Select true to install Mysql 5.7 locally. If you are using RDS, set False
+mysql_local_install: False
+standalone_ha_installation: True
+standalone_config_file: "{{'standalone-ha.xml' if (standalone_ha_installation == True) else '{{ standalone.xml }}'}}"

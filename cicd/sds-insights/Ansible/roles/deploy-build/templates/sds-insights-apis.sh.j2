@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export INSIGHT_API_PSQL_DB_URL=jdbc:postgresql://{{ pgsql_host }}:{{ pgsql_port }}/{{ pgsql_db }}
+export INSIGHT_API_PSQL_DB_USER={{ pgsql_user }}
+export INSIGHT_API_PSQL_DB_PASSWORD={{ pgsql_password }}
+export INSIGHT_API_ALLOWED_HOSTS={{ url_domain_name_with_port }}

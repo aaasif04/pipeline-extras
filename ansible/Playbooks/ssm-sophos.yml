@@ -1,0 +1,33 @@
+- hosts: localhost
+  gather_facts: yes
+  become: true
+  become_method: sudo
+  user: ubuntu
+  tasks:
+  - name: Download SSM Agent
+    get_url:
+       url: https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb
+       dest: /tmp/amazon-ssm-agent.deb
+       mode: '0440'
+    when: ansible_distribution == 'Ubuntu'
+
+  - name: Download Sophos
+    get_url:
+       url: https://dzr-api-amzn-us-west-2-fa88.api-upe.p.hmr.sophos.com/api/download/a930a7b861140304e3ce4cb98448315b/SophosInstall.sh
+       dest: /tmp/SophosInstall.sh
+       mode: '0755'
+  
+  - name: Install SSM agent
+    apt: deb="/tmp/amazon-ssm-agent.deb"
+    when: ansible_distribution == 'Ubuntu'
+ 
+  - name: Install Sophos
+    shell: /tmp/SophosInstall.sh
+
+  - name: Starting ssm agent
+    systemd: name=amazon-ssm-agent state=restarted daemon_reload=yes enabled=yes
+    when: ansible_distribution == 'Ubuntu' and ansible_distribution_version == '16.04'
+
+  - name: Starting ssm agent
+    service: name=amazon-ssm-agent state=restarted enabled=yes
+    when: ansible_distribution == 'Ubuntu' and ansible_distribution_version == '14.04'

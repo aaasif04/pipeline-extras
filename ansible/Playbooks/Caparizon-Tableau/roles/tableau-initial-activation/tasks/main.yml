@@ -1,0 +1,84 @@
+---
+- name: Finding the Tableau scripts directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/scripts.*
+  register: tableau_scripts_dir
+
+- debug: msg={{ tableau_scripts_dir.stdout }}
+
+- name: Finding the Tableau customer bin directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+  register: tsm_bin_dir
+
+- debug: msg={{ tsm_bin_dir.stdout }}
+
+- block:
+
+  - name: Initialize Tableau. Will take some time. Please wait....
+    command: 'sudo {{ tableau_scripts_dir.stdout }}/initialize-tsm --accepteula'
+
+  - name: Adding environment variables from taleau sudo user
+    shell: source /etc/profile.d/tableau_server.sh
+  
+  - name: Activating two week trial
+    command: '{{ tsm_bin_dir.stdout }}/tsm licenses activate -t'
+
+  - name: Activate Product Key
+    command: '{{ tsm_bin_dir.stdout }}/tsm licenses activate -k {{ product_key }}'
+    when: activate_trial == False
+
+  - name: Copy the registration template file to tableau server
+    template: 
+      src: registration.json.j2
+      dest: /home/{{ sudo_user }}/registration.json
+      mode: '644'
+
+  - name: Register Tableau Server
+    command: '{{ tsm_bin_dir.stdout }}/tsm register --file /home/{{ sudo_user }}/registration.json'
+
+  - name: Copy local identity json file
+    copy: src=local-identity.json dest=/home/{{ sudo_user}}/local-identity.json mode=0644 owner={{ sudo_user}}
+    when: identity_store == "Local"
+
+  - name: Setting local identity store
+    command: '{{ tsm_bin_dir.stdout }}/tsm settings import -f /home/{{ sudo_user}}/local-identity.json'
+    when: identity_store == "Local"
+
+  - name: Copy gateway json file
+    copy: src=tsm-gateway.json dest=/home/{{ sudo_user}}/tsm-gateway.json mode=0644 owner={{ sudo_user}}
+
+  - name: Configure gateway
+    command: '{{ tsm_bin_dir.stdout }}/tsm settings import -f /home/{{ sudo_user}}/tsm-gateway.json'
+
+  - name: Copy share usage data json file
+    copy: src=share-product-usage-data.json dest=/home/{{ sudo_user}}/share-product-usage-data.json mode=0644 owner={{ sudo_user}}
+
+  - name: Configure share usage data
+    command: '{{ tsm_bin_dir.stdout }}/tsm settings import -f /home/{{ sudo_user}}/share-product-usage-data.json'
+    
+  - name: Finding the Tableau customer bin directory2 and version
+    shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+    register: tsm_bin_dir2
+  
+  - name: Disabling sample workbook installation
+    command: '{{ tsm_bin_dir2.stdout }}/tsm configuration set -k install.component.samples -v false'
+    when: sample_workbook_install == False
+
+  - name: Apply pending changes
+    command: '{{ tsm_bin_dir2.stdout }}/tsm pending-changes apply --ignore-prompt'
+
+  - name: Initialize and start Tableau Server...It will take long....Please wait....
+    command: '{{ tsm_bin_dir2.stdout }}/tsm initialize --start-server --request-timeout 1800'
+ 
+  - name: Create administrator account for Tableau
+    command: "{{ tsm_bin_dir2.stdout }}/tabcmd initialuser --server 'localhost:80' --username '{{ tableau_admin_user }}' --password '{{ tableau_admin_password }}'"
+
+  - name: Create for bootstrap file for additional nodes
+    command: '{{ tsm_bin_dir2.stdout }}/tsm topology nodes get-bootstrap-file --file /home/{{ sudo_user}}/bootstrap-file.json'
+  
+  - name: Fetch the bootstrap file to ansible master 
+    run_once: yes
+    fetch: src=/home/{{ sudo_user}}/bootstrap-file.json dest={{ playbook_dir }}/shared-files/bootstrap-file.json flat=yes
+
+  become: true
+  become_user: "{{ sudo_user }}"
+  become_method: sudo

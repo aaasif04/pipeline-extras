@@ -1,0 +1,18 @@
+---
+- name: create document root directory for admin and workbench
+  file: path=/var/www/html/{{ apache_document_dir_name }} state=directory mode=0755 owner=apache group=apache
+
+- name: Copy the apache configuration for app
+  template: 
+    src: app.conf.j2
+    dest: /etc/httpd/conf.d/{{ apache_document_dir_name }}.conf
+    mode: '0755'
+
+- name: Add healthcheck file to document directory
+  copy:
+    content: |
+      Ok
+    dest: /var/www/html/{{ apache_document_dir_name }}/healthcheck
+
+- name: Retart httpd service
+  systemd: name=httpd state=restarted

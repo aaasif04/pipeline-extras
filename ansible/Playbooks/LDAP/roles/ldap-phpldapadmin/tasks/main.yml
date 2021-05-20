@@ -1,0 +1,95 @@
+---
+  - name: Install neccessary phpldapadmin packages
+    yum:
+      name: ['epel-release', 'phpldapadmin', 'mod_ssl']
+      state: latest
+
+  - name: Copy phpldapadmin.conf
+    template:
+      src: phpldapadmin.conf.j2
+      dest: /etc/httpd/conf.d/phpldapadmin.conf
+
+  - name: Create a directory for apache ssl certificate in all hosts
+    file:
+      path: "{{ ssl_certificate_location }}/"
+      state: directory
+      mode: 0755
+
+  - name: Create a directory for phpldap ssl certificate creation in one host
+    file:
+      path: "/etc/ssl/certs/phpldap/"
+      state: directory
+      mode: 0755 
+    run_once: true
+
+  - name: Generate an OpenSSL private key for phldapadmin.
+    openssl_privatekey:
+      path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.key"
+    run_once: true
+
+  - name: Generate an OpenSSL CSR for phldapadmin.
+    openssl_csr:
+      path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.csr"
+      privatekey_path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.key"
+      common_name: "{{ ssl_common_name }}"
+    run_once: true
+
+  - name: Generate a Self Signed OpenSSL certificate for phldapadmin.
+    openssl_certificate:
+      path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.crt"
+      privatekey_path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.key"
+      csr_path: "/etc/ssl/certs/phpldap/{{ ssl_common_name }}.csr"
+      provider: selfsigned
+    run_once: true
+
+  - name: Register private Key
+    shell: cat /etc/ssl/certs/phpldap/{{ ssl_common_name }}.key
+    register: php_key_contents
+    run_once: true
+
+  - name: Register SSL Certificate
+    shell: cat /etc/ssl/certs/phpldap/{{ ssl_common_name }}.crt
+    register: php_crt_contents
+    run_once: true
+
+  - name: Copy private certificate contents to apache certificate folder
+    copy: dest={{ ssl_certificate_location }}/{{ ssl_common_name }}.key content={{ php_key_contents.stdout }}
+  
+  - name: Copy SSL certificate contents to apache certificate folder
+    copy: dest={{ ssl_certificate_location }}/{{ ssl_common_name }}.crt content={{ php_crt_contents.stdout }}
+
+  - name: Copy ssl.conf
+    template:
+      src: ssl.conf.j2
+      dest: /etc/httpd/conf.d/ssl.conf
+
+  - name: Enable and retart HTTPD service
+    systemd: name=httpd state=restarted daemon_reload=yes enabled=yes
+    
+  - name: Add LDAP Server Name to the config
+    lineinfile:
+      dest: /etc/phpldapadmin/config.php
+      regexp: "'server','name'"
+      line: "$servers->setValue('server','name','{{ (ldap_root_dn.split('=')[1]).split(',')[0] }} LDAP Server');"
+      firstmatch: yes
+
+  - name: Add LDAP base domain name to the config
+    lineinfile:
+      dest: /etc/phpldapadmin/config.php
+      regexp: "'server','base'"
+      line: "$servers->setValue('server','base',array('{{ ldap_root_dn }}'));"
+      firstmatch: yes
+
+  - name: Uncomment dn login attribute
+    lineinfile:
+      dest: /etc/phpldapadmin/config.php
+      regexp: "'login','attr','dn'"
+      line: "$servers->setValue('login','attr','dn');"
+      firstmatch: yes
+
+  - name: comment uid login attribute
+    lineinfile:
+      dest: /etc/phpldapadmin/config.php
+      regexp: "'login','attr','uid'"
+      line: "// $servers->setValue('login','attr','uid');"
+      firstmatch: yes

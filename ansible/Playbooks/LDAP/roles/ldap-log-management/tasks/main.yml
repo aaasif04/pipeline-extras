@@ -1,0 +1,45 @@
+---
+- name: Create a directory if it does not exist
+  file: path={{ ldif_location }} state=directory mode='0755'
+
+- name: Copy auditlog.ldif template
+  template: src=auditlog.ldif.j2 dest={{ ldif_location }}/auditlog.ldif
+  run_once: true
+
+- name: Enable the auditlog module
+  command: ldapadd -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/auditlog.ldif
+  register: audit_log_output
+  run_once: true
+  ignore_errors: yes
+
+- name: Create a directory for slap log if it does not exist
+  file: path=/var/log/slapd owner=ldap group=ldap state=directory mode='0755'
+
+- name: Copy overlay_auditlog.ldif template
+  template: src=overlay_auditlog.ldif.j2 dest={{ ldif_location }}/overlay_auditlog.ldif
+  run_once: true
+
+- name: Enable the overlay auditlog module
+  command: ldapadd -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/overlay_auditlog.ldif
+  register: overlay_auditlog_output
+  run_once: true
+  ignore_errors: yes
+
+- name: Enable LDAP logging
+  lineinfile:
+    dest: /etc/rsyslog.d/sldap.conf
+    line: local4.* /var/log/slapd/ldap.log
+    state: present
+    create: yes
+ 
+- name: Restart the rsyslog service
+  raw: systemctl restart rsyslog
+
+- name: Restart rsyslog service
+  systemd: name=rsyslog state=restarted
+
+- name: Copy log rotation template
+  template: src=slap_log_rotation.j2 dest=/etc/logrotate.d/slapd_logs
+
+- name: Restart LDAP slapd service
+  systemd: name=slapd state=restarted

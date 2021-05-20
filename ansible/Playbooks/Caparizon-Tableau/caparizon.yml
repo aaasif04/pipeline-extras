@@ -1,0 +1,9 @@
+---
+- become: true
+  become_method: sudo
+  gather_facts: no
+
+  hosts: caparizon
+  roles:
+    - role: tableau-initial
+    - role: tableau-initial-activation

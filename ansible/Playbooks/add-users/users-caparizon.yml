@@ -1,0 +1,41 @@
+---
+users:
+  - username: tony.thomas
+    comment: Tony Thomas
+    use_sudo: True
+    group: paiadmins
+
+  - username: ratheesh.kumar
+    comment: Ratheesh Kumar
+    use_sudo: True
+    group: paiadmins
+    
+  - username: kiran.udayan
+    comment: Kiran Udayan
+    use_sudo: True
+    group: paiadmins
+
+  - username: mathew.joseph
+    comment: Mathew Joseph
+    use_sudo: True
+    group: caparizon
+
+  - username: hussan.jaffar
+    comment: Hussan Jaffar
+    use_sudo: True
+    group: caparizon
+
+  - username: bipin.mv
+    comment: Bipin M V
+    use_sudo: True
+    group: caparizon
+
+  - username: hariharan.ts
+    comment: Hariharan T S
+    use_sudo: True
+    group: caparizon
+
+  - username: krishnanath.v
+    comment: Krishnanath Venkataraman
+    use_sudo: True
+    group: caparizon

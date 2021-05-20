@@ -1,0 +1,22 @@
+---
+#Provide the configuration management user with sudo access for Tableau
+tsm_sudo_user: "{{ vault_tsm_sudo_user }}"
+tsm_sudo_user_pass: "{{ vault_tsm_sudo_user_pass }}"
+
+#Set tsm_activate_trial to True to activate two weeks trial, else set False
+tsm_activate_trial: True
+#If tsm_activate_trial set to False, then must supply the product key in vault
+tsm_product_key: "{{ vault_product_key }}"
+#Enter the following details in vault for tableau server registration
+tsm_zip: "{{ vault_tsm_zip }}"
+tsm_country: "{{ vault_tsm_country }}"
+tsm_city: "{{ vault_tsm_city }}"
+tsm_last_name: "{{ vault_tsm_last_name }}"
+tsm_industry: "{{ vault_tsm_industry }}"
+tsm_title: "{{ vault_tsm_title }}"
+tsm_phone: "{{ vault_tsm_phone }}"
+tsm_company_name: "{{ vault_tsm_company_name }}"
+tsm_state: "{{ vault_tsm_state }}"
+tsm_department: "{{ vault_tsm_department }}"
+tsm_first_name: "{{ vault_tsm_first_name }}"
+tsm_email: "{{ vault_tsm_email }}"

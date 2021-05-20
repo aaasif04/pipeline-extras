@@ -1,0 +1,17 @@
+/var/log/slapd/auditlog.log {
+    notifempty
+    missingok
+    monthly
+    rotate 4
+    compress
+    copytruncate
+}
+
+/var/log/slapd/ldap.log {
+    notifempty
+    missingok
+    monthly
+    rotate 4
+    compress
+    copytruncate
+}

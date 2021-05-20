@@ -1,0 +1,44 @@
+---
+- hosts: new
+  become: true
+  become_method: sudo
+  gather_facts: no
+
+  vars:
+    LOCAL_HOSTNAME: "{{ inventory_hostname }}"
+
+  tasks:
+  - debug:
+      msg: "{{ LOCAL_HOSTNAME }}" 
+  - name: Set Hostname
+    hostname: name="{{ LOCAL_HOSTNAME }}"
+
+  #Disable cloudinit settings
+  # Double quoting to allow the space,colon
+  # in the "line=" line.
+
+  - name: Preserving hostname in cloud.cfg
+    lineinfile: "dest=/etc/cloud/cloud.cfg line='preserve_hostname: true' state=present"
+
+  - name: Disable cloud hostname in cloud.cfg
+    replace:
+      path: /etc/cloud/cloud.cfg
+      regexp: "{{ item }}"
+      replace: '#\1'
+    with_items:
+      - '(.*set_hostname.*)'
+      - '(.*update_hostname.*)'
+      - '(.*update_etc_hosts.*)'
+      - '(.*default_user.*)'
+      - '(.*name: centos.*)'
+      - '(.*lock_passwd: true.*)'
+      - '(.*gecos: Cloud User.*)'
+      - '(.*groups: .*)'
+      - '(.*sudo: .*)'
+      - '(.*shell: /bin/bash.*)'
+  #Add hosts file entry
+  #- name: Add the server's hostname to the hosts file localhost
+  #  replace:
+  #    dest: /etc/hosts
+  #    regexp: '^(127.0.0.1(?!.*\b{{ LOCAL_HOSTNAME }}\b).*)$'
+  #    replace: '\1 {{ LOCAL_HOSTNAME }}'

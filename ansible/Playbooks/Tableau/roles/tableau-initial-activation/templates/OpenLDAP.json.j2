@@ -1,0 +1,46 @@
+{
+    "configEntities": {
+        "identityStore": {
+            "_type": "identityStoreType",
+            "type": "activedirectory",
+            "domain": "{{ ldap_domain_name }}",
+            "root": "{{ ldap_root_dc }}",
+            "nickname": "",
+            "hostname": "{{ ldap_server_hostname }}",
+            "port": "{{ ldap_port }}",
+            "sslPort": "{{ ldaps_port }}",
+            "directoryServiceType": "openldap",
+            "bind": "simple",
+            "username": "{{ ldap_admin_username }}",
+            "password": "{{ ldap_admin_password }}",
+            "kerberosPrincipal": "",
+            "identityStoreSchemaType": {
+                "distinguishedNameAttribute": "",
+                "userBaseDn": "{{ ldap_user_base_dn }}",
+                "userBaseFilter": "(objectClass=inetOrgPerson)",
+                "userUsername": "uid",
+                "userDisplayName": "displayName",
+                "userEmail": "mail",
+                "userCertificate": "userCertificate",
+                "userThumbnail": "photo",
+                "userJpegPhoto": "jpegPhoto",
+                "memberOf": "memberOf",
+                "groupBaseDn": "{{ ldap_group_base_dn }}",
+                "groupClassNames": [
+                    ""
+                ],
+                "groupBaseFilter": "(objectClass=groupOfNames)",
+                "groupName": "cn",
+                "groupEmail": "",
+                "groupDescription": "description",
+                "member": "member",
+                "serverSideSorting": "false",
+                "rangeRetrieval": "false",
+                "membersRetrievalPageSize": "",
+                "userClassNames": [
+                    ""
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,66 @@
+---
+  - name: Ensure required python module dependencies are installed.
+    pip:
+      name: pyOpenSSL
+      state: present
+
+  - name: Generate an OpenSSL private key.
+    openssl_privatekey:
+      path: /etc/ssl/certs/{{ ssl_common_name }}.key
+    run_once: true 
+
+  - name: Generate an OpenSSL CSR.
+    openssl_csr:
+      path: /etc/ssl/certs/{{ ssl_common_name }}.csr
+      privatekey_path: /etc/ssl/certs/{{ ssl_common_name }}.key
+      common_name: "{{ ssl_common_name }}"
+    run_once: true 
+
+  - name: Generate a Self Signed OpenSSL certificate.
+    openssl_certificate:
+      path: /etc/ssl/certs/{{ ssl_common_name }}.crt
+      privatekey_path: /etc/ssl/certs/{{ ssl_common_name }}.key
+      csr_path: /etc/ssl/certs/{{ ssl_common_name }}.csr
+      provider: selfsigned
+    run_once: true
+
+  - name: Register private Key
+    shell: cat /etc/ssl/certs/{{ ssl_common_name }}.key
+    register: key_contents
+    run_once: true
+
+  - name: Register SSL Certificate
+    shell: cat /etc/ssl/certs/{{ ssl_common_name }}.crt
+    register: crt_contents
+    run_once: true
+
+  - name: Copy private certificate contents to openldap certificate folders
+    copy: dest=/etc/openldap/certs/{{ ssl_common_name }}.key content={{ key_contents.stdout }}
+  
+  - name: Copy SSL certificate contents to openldap certificate folders
+    copy: dest=/etc/openldap/certs/{{ ssl_common_name }}.crt content={{ crt_contents.stdout }}
+
+  - name: Change certificate folder ownership to ldap
+    file: dest=/etc/openldap/certs/ owner=ldap group=ldap recurse=yes
+  
+  - name: Create a ldif directory if it does not exist
+    file: path={{ ldif_location }} state=directory mode='0755'
+    
+  - name: Copy certs.ldif template file and configure ldaps
+    template:
+      src: certs.ldif.j2
+      dest: "{{ ldif_location }}/certs.ldif"
+    #run_once: true
+
+  - name: deploy ssl certificate configuration
+    command: ldapmodify -Y EXTERNAL -H ldapi:/// -f {{ ldif_location }}/certs.ldif
+    #run_once: true
+
+  - name: Enable ldaps in slapd
+    lineinfile:
+      dest: /etc/sysconfig/slapd
+      regexp: '^SLAPD_URLS'
+      line: "SLAPD_URLS=\"ldapi:/// ldap:/// ldaps:///\""
+
+  - name: Restart LDAP slapd service
+    systemd: name=slapd state=restarted

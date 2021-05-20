@@ -1,0 +1,37 @@
+#Section 1
+#Provide the configuration management user with sudo access for Tableau
+sudo_user: "{{ vault_tsm_sudo_user }}"
+sudo_user_pass: "{{ vault_tsm_sudo_user_pass }}"
+
+#Section 2
+#Set tsm_activate_trial to True to activate two weeks trial, else set False
+activate_trial: True
+#If tsm_activate_trial set to False, then must supply the product key in vault
+product_key: "{{ vault_product_key }}"
+
+#Section 3
+#Enter the following details in vault for tableau server registration
+zip: "{{ vault_tsm_zip }}"
+country: "{{ vault_tsm_country }}"
+city: "{{ vault_tsm_city }}"
+last_name: "{{ vault_tsm_last_name }}"
+industry: "{{ vault_tsm_industry }}"
+title: "{{ vault_tsm_title }}"
+phone: "{{ vault_tsm_phone }}"
+company_name: "{{ vault_tsm_company_name }}"
+state: "{{ vault_tsm_state }}"
+department: "{{ vault_tsm_department }}"
+first_name: "{{ vault_tsm_first_name }}"
+email: "{{ vault_tsm_email }}"
+
+#Section 4
+#Set the identity store here. values: Local, AD, LDAP, LDAP-GSSAPI
+identity_store: Local
+sample_workbook_install: False
+
+#Section 5
+#Provide the intial admin username and password
+#If LDAP or Active Directory is using as identity store, 
+# username and password must be already created in Directory service and provide that username, password here
+tableau_admin_user: "{{ vault_tsm_tableau_admin_user }}" 
+tableau_admin_password: "{{ vault_tsm_tableau_admin_password }}"

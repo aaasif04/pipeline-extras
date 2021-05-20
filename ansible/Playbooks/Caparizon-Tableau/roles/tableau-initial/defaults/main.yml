@@ -1,0 +1,4 @@
+---
+tsm_rpm_url: https://downloads.tableau.com/esdalt/2020.3.0/tableau-server-2020-3-0.x86_64.rpm
+postgresql_driver_rpm_url: https://downloads.tableau.com/drivers/linux/yum/tableau-driver/tableau-postgresql-odbc-09.06.0500-1.x86_64.rpm
+src_dir: /usr/local/src

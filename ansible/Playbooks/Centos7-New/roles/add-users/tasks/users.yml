@@ -1,0 +1,32 @@
+---
+users:
+
+  - username: paiadmins
+    comment: Prevalent Admins
+    use_sudo: True
+    group: paiadmins
+
+  - username: paijenkins
+    comment: Jenkins Automation
+    use_sudo: True
+    group: paiadmins
+
+  - username: tony.thomas
+    comment: Tony Thomas
+    use_sudo: True
+    group: paiadmins
+
+  - username: ratheesh.kumar
+    comment: Ratheesh Kumar
+    use_sudo: True
+    group: paiadmins
+    
+  - username: kiran.udayan
+    comment: Kiran Udayan
+    use_sudo: True
+    group: paiadmins
+
+  - username: sajith.ms
+    comment: Sajith MS
+    use_sudo: True
+    group: paiadmins  

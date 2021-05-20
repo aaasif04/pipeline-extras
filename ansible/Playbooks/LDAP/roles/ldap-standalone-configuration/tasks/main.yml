@@ -1,0 +1,82 @@
+---
+  - name: Ensure required python module dependencies are installed.
+    pip:
+      name: pexpect
+      state: present
+
+  - name: Create a directory if it does not exist
+    file: path={{ ldif_location }} state=directory mode='0755'
+
+  - name: Setup LDAP admin password
+    shell: slappasswd -s {{ ldap_admin_password }}
+    register: root_password 
+
+  - name: Copy OpenLDAP db.ldif template file and configure it
+    template:
+      src: db.ldif.j2
+      dest: "{{ ldif_location }}/db.ldif"
+  
+  - name: Send the configuration db.ldif to the LDAP server
+    command: ldapmodify -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/db.ldif
+    ignore_errors: yes
+
+  - name: Copy OpenLDAP monitor.ldif template file and configure it
+    template:
+      src: monitor.ldif.j2
+      dest: "{{ ldif_location }}/monitor.ldif"
+
+  - name: Send the configuration monitor.ldif to the LDAP server
+    command: ldapmodify -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/monitor.ldif
+    ignore_errors: yes
+  
+  - name: Set up LDAP database
+    command: cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG
+
+  - name: Chage owner of files copied
+    file: path=/var/lib/ldap/ owner=ldap group=ldap state=directory recurse=yes
+
+  - name: Add the cosine and nis LDAP schemas
+    command: "{{ item }}"
+    with_items:
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif 
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+    register: fail_output
+    ignore_errors: yes
+
+  - name: Copy OpenLDAP base.ldif template file and configure it
+    template:
+      src: base.ldif.j2
+      dest: "{{ ldif_location }}/base.ldif"
+
+  - name: Send the configuration base.ldif to the LDAP server
+    expect:
+      command: ldapadd -x -W -D "cn=ldapadm,{{ ldap_root_dn }}" -f {{ ldif_location }}/base.ldif
+      responses:
+        (?i)password: "{{ ldap_admin_password }}"
+    no_log: true
+    ignore_errors: yes
+
+  - name: Copy user.ldif template file 
+    template:
+      src: initial_user.ldif.j2
+      dest: "{{ ldif_location }}/initial_user.ldif"
+  
+  - name: Create a new user in OpenLDAP directory
+    expect:
+      command: ldapadd -x -W -D "cn=ldapadm,{{ ldap_root_dn }}" -f {{ ldif_location }}/initial_user.ldif
+      responses:
+        (?i)password: "{{ vault_ldap_admin_password }}"
+    no_log: true
+    ignore_errors: yes
+
+  - name: Assign password to User
+    expect:
+      command: ldappasswd -s {{ ldap_initial_user_pass }} -W -D "cn=ldapadm,{{ ldap_root_dn }}" -x "uid={{ ldap_initial_user_name }},ou=People,{{ ldap_root_dn }}"
+      responses:
+        (?i)password: "{{ vault_ldap_admin_password }}"
+    no_log: true
+    ignore_errors: yes
+
+  - name: Restart LDAP slapd service
+    systemd: name=slapd state=restarted

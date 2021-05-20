@@ -1,0 +1,68 @@
+---
+- name: install epel-release
+  yum: name=epel-release state=latest
+
+- name: upgrade all packages
+  yum: name=* state=latest
+
+- name: Create keycloak user group
+  group: name={{ sudo_user }} state=present
+
+- name: Creating sudo user for tableau
+  user: name={{ sudo_user }} password={{ sudo_user_pass }} shell=/bin/bash createhome=yes system=yes group={{ sudo_user }} home=/home/{{ sudo_user }}
+
+- name: Adding users to sudoers file and validate
+  lineinfile: "dest=/etc/sudoers insertafter=EOF line='{{ sudo_user }} ALL=(ALL) NOPASSWD: ALL'
+              regexp='^{{ sudo_user }} .*' state=present"
+
+- name:  Download TSM server rpm 
+  get_url: url={{ tsm_rpm_url }} dest={{ src_dir }}/
+  
+- name: Install rpm through yum 
+  yum: name={{ src_dir }}/{{ tsm_rpm_url | basename }} state=present
+  
+- name: Finding the Tableau scripts directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/scripts.*
+  register: tableau_scripts_dir
+
+- debug: msg={{ tableau_scripts_dir.stdout }}
+
+- block:
+  - name: Initialize Tableau. Will take some time. Please wait....
+    command: 'sudo {{ tableau_scripts_dir.stdout }}/initialize-tsm --accepteula'
+
+  - name: Adding environment variables from taleau sudo user
+    shell: source /etc/profile.d/tableau_server.sh
+
+  
+  - name: Finding the Tableau customer bin directory and version
+    shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+    register: tsm_bin_dir
+
+  - debug: msg={{ tsm_bin_dir.stdout }}
+
+  - name: Activating two week trial
+    command: '{{ tsm_bin_dir.stdout }}/tsm licenses activate -t'
+
+  - name: Activate Product Key
+    command: '{{ tsm_bin_dir.stdout }}/tsm licenses activate -k {{ product_key }}'
+    when: activate_trial == False
+
+  - name: Copy the registration template file to tableau server
+    template: 
+      src: registration.json.j2
+      dest: /home/{{ sudo_user }}/registration.json
+      mode: '644'
+
+  - name: Register Tableau Server
+    command: '{{ tsm_bin_dir.stdout }}/tsm register --file /home/{{ sudo_user }}/registration.json'
+  
+  become: true
+  become_user: "{{ sudo_user }}"
+  become_method: sudo
+
+
+
+
+
+   

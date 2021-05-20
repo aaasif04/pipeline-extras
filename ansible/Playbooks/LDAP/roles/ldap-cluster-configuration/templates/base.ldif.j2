@@ -1,0 +1,17 @@
+dn: {{ ldap_root_dn }}
+dc: {{ (ldap_root_dn.split('=')[1]).split(',')[0] }}
+objectClass: top
+objectClass: domain
+
+dn: cn=ldapadm ,{{ ldap_root_dn }}
+objectClass: organizationalRole
+cn: ldapadm
+description: LDAP Manager
+
+dn: ou=People,{{ ldap_root_dn }}
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Group,{{ ldap_root_dn }}
+objectClass: organizationalUnit
+ou: Group

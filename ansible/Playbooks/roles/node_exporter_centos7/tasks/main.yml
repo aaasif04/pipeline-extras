@@ -1,0 +1,81 @@
+---
+#- name: Ensure required python module dependencies are installed.
+#  pip:
+#    name: pyOpenSSL
+#   state: present
+
+- name: Download node_exporter from official repository
+  get_url:
+    url: "{{ node_exporter_url }}"
+    dest: "{{ source_dir }}"
+  
+- name: Create directory for node_exporter extract
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+  with_items:
+    - "{{ source_dir }}/node_exporter"
+    - /etc/node_exporter
+    - /etc/node_exporter/ssl
+
+- name: Extracting the tar archive
+  unarchive:
+    dest: "{{ source_dir }}/node_exporter/"
+    src: "{{ source_dir }}/{{ node_exporter_url | basename }}"
+    extra_opts: [--strip-components=1]
+    remote_src: yes
+
+- name: Creating user for nde_exporter to run
+  user: name=nodeexporter shell=/bin/false createhome=no
+
+#- name: Generate an OpenSSL private key for node-exporter.
+#  openssl_privatekey:
+#    path: /etc/node_exporter/ssl/node_exporter.key
+
+#- name: Generate an OpenSSL CSR for node-exporter.
+#  openssl_csr:
+#    path: /etc/node_exporter/ssl/node_exporter.csr
+#    privatekey_path: /etc/node_exporter/ssl/node_exporter.key
+#    common_name: "localhost"
+
+#- name: Generate a Self Signed OpenSSL certificate for node-exporter.
+#  openssl_certificate:
+#    path: /etc/node_exporter/ssl/node_exporter.crt
+#    privatekey_path: /etc/node_exporter/ssl/node_exporter.key
+#    csr_path: /etc/node_exporter/ssl/node_exporter.csr
+#    provider: selfsigned
+
+- name: Copy certificate file to node-exporter folder
+  copy:
+    src: node_exporter.crt
+    dest: /etc/node_exporter/ssl/
+    mode: '0400'
+    owner: nodeexporter
+    group: nodeexporter  
+
+- name: Copy private key file to node-exporter folder
+  copy:
+    src: node_exporter.key
+    dest: /etc/node_exporter/ssl/
+    mode: '0400'
+    owner: nodeexporter
+    group: nodeexporter 
+
+- name: Copy the web.yml file to node_exporter folder
+  template: 
+    src: web.yml.j2
+    dest: /etc/node_exporter/web.yml
+    mode: '0644'
+
+- name: Copy the systemctl file to systemd folder
+  template: 
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    mode: '0644'
+
+- name: Change folder ownership to node user
+  file: dest=/etc/node_exporter/ owner=nodeexporter group=nodeexporter mode=u=rwX,g=rX,o=rX recurse=yes
+
+- name: Enable and Start node_exporter as a service
+  systemd: name=node_exporter state=restarted daemon_reload=yes enabled=yes

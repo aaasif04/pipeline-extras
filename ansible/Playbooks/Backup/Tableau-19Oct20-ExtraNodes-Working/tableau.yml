@@ -1,0 +1,25 @@
+---
+#- hosts: tableaumaster
+#  become: true
+#  become_method: sudo
+#  gather_facts: no
+#  roles:
+#    - role: tableau-initial
+#    - role: tableau-initial-activation
+  
+#- hosts: tableaunodes
+#  become: true
+#  become_method: sudo
+#  gather_facts: no
+#  roles:
+#    - role: tableau-aditional-install
+
+- hosts: tableaumaster
+  become: true
+  become_method: sudo
+  gather_facts: no
+  roles:
+#    - role: tableau-master-clustersetup
+#    - role: processes-for-second-node
+#    - role: processes-for-third-node
+    - role: processes-for-extra-nodes  

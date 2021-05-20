@@ -1,0 +1,26 @@
+---
+- name: Finding the Tableau customer bin directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+  register: tsm_bin_dir
+
+- name: Add processess for the second node
+  command: "{{ tsm_bin_dir.stdout }}/tsm topology set-process -n {{ node_id }} -pr {{ item.process }} -c {{ item.count }}"
+  with_items:
+    - "{ process: gateway, count: 1 }"
+    - "{ process: vizqlserver, count: 2 }"
+    - "{ process: vizportal, count: 2 }"
+    - "{ process: backgrounder, count: 2 }"
+    - "{ process: cacheserver, count: 2 }"
+    - "{ process: searchserver, count: 1 }"
+    - "{ process: dataserver, count: 2 }"
+    - "{ process: filestore, count: 1 }"
+    - "{ process: pgsql, count: 1 }"
+  when: overide_default_process_allocation == "False"
+
+- name: Apply pending changes now
+  command: '{{ tsm_bin_dir.stdout }}/tsm pending-changes apply --ignore-prompt --ignore-warnings'
+  ignore_errors: yes
+  
+- name: Start TSM . Will take some time..Please wait...
+  command: "{{ tsm_bin_dir.stdout }}/tsm start"
+  ignore_errors: yes

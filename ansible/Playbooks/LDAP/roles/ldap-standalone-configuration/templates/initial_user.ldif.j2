@@ -1,0 +1,17 @@
+dn: uid={{ ldap_initial_user_name }},ou=People,{{ ldap_root_dn }}
+objectClass: top
+objectClass: account
+objectClass: posixAccount
+objectClass: shadowAccount
+cn: {{ ldap_initial_user_name }}
+uid: {{ ldap_initial_user_name }}
+uidNumber: 9999
+gidNumber: 100
+homeDirectory: /home/{{ ldap_initial_user_name }}
+loginShell: /bin/bash
+gecos: {{ ldap_initial_user_fullname }}
+userPassword: {crypt}x
+shadowLastChange: 17058
+shadowMin: 0
+shadowMax: 99999
+shadowWarning: 7

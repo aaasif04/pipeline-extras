@@ -1,0 +1,11 @@
+---
+  - name: Install apache packages
+    yum:
+      name: ['httpd', 'httpd-devel']
+      state: latest
+
+  - name: Override Apache defualt Listnening port
+    lineinfile: dest=/etc/httpd/conf/httpd.conf regexp="^Listen 80" line="Listen {{ httpd_listen_port }}" state=present
+
+  - name: Enable and Start httpd service
+    systemd: name=httpd state=started daemon_reload=yes enabled=yes

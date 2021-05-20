@@ -1,0 +1,19 @@
+---
+- name: Copy bootstrap script from the shared-files directory
+  copy: src={{ playbook_dir }}/shared-files/bootstrap-file.json dest=/home/{{ sudo_user}}/bootstrap-file.json
+        owner={{ sudo_user }} mode=0644
+
+- name: Finding the Tableau scripts directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/scripts.*
+  register: tableau_node_scripts_dir
+
+- debug: msg={{ tableau_node_scripts_dir.stdout }}
+
+- block:
+
+  - name: Initialize Tableau. Will take some time. Please wait....
+    command: 'sudo {{ tableau_node_scripts_dir.stdout }}/initialize-tsm -b /home/{{ sudo_user}}/bootstrap-file.json --accepteula'
+
+  become: true
+  become_user: "{{ sudo_user }}"
+  become_method: sudo

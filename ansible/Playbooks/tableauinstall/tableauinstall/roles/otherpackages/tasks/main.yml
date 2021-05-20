@@ -1,0 +1,19 @@
+---
+  - name: Install otehr packages
+    yum:
+      name: ['git', 'unzip', 'epel-release', 'vim', 'wget']
+      state: latest
+
+  - name:  Download nodejs 12 repo file
+    get_url: 
+      url: "{{ nodejs_url }}"
+      dest: "/tmp/"
+
+  - name: Add nodejs 12.x repo
+    command: 'bash /tmp/{{ nodejs_url | basename }}'
+
+  - name: install nodejs
+    yum:
+      name: ['nodejs']
+      state: present
+ 

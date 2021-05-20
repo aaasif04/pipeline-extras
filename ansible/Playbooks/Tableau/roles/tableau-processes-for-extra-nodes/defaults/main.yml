@@ -1,0 +1,11 @@
+---
+  processes:
+    - { tsm_process: "pgsql", count: "1" }
+    - { tsm_process: "gateway", count: "1" }
+    - { tsm_process: "vizqlserver", count: "2" }
+    - { tsm_process: "vizportal", count: "2" }
+    - { tsm_process: "backgrounder", count: "2" }
+    - { tsm_process: "cacheserver", count: "2" }
+    - { tsm_process: "searchserver", count: "1" }
+    - { tsm_process: "dataserver", count: "2" }
+    - { tsm_process: "filestore", count: "1" }

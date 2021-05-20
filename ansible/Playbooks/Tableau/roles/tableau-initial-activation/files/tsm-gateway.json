@@ -1,0 +1,10 @@
+{
+    "configEntities": {
+        "gatewaySettings": {
+            "_type": "gatewaySettingsType",
+            "port": 80,
+            "sslRedirectEnabled": true,
+            "publicHost": "localhost"
+        }
+    }
+}

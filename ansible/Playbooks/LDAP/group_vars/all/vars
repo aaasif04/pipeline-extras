@@ -1,0 +1,8 @@
+ldap_admin_password: "{{ vault_ldap_admin_password }}"
+ldap_root_dn: "dc=cear-uat,dc=local"
+
+ssl_common_name: "ldap.cear-uat.local"
+
+ldap_initial_user_name: "security@prevalent.ai"
+ldap_initial_user_fullname: "PAI Security"
+ldap_initial_user_pass: "{{ vault_ldap_initial_user_pass }}"

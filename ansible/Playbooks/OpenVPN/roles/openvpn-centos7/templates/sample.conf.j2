@@ -1,0 +1,17 @@
+client
+tls-client
+remote-cert-eku "TLS Web Server Authentication"
+proto udp
+remote {{ ipify_public_ip }} 1194 udp
+dev tun
+topology subnet
+pull
+auth-user-pass
+<ca>
+</ca>
+<cert>
+</cert>
+<key>
+</key>
+<tls-crypt>
+</tls-crypt>

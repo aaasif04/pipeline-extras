@@ -1,0 +1,7 @@
+---
+- name: Deploy the code into remote Server
+  hosts: calib-insights-servers
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - calib-deploy-build

@@ -1,0 +1,32 @@
+---
+- become: true
+  become_method: sudo
+  gather_facts: no
+  
+  hosts: tableaucluster
+  roles:
+    - role: tableau-initial-activation
+      sudo_user: "{{ tsm_sudo_user }}"
+      sudo_user_pass: "{{ tsm_sudo_user_pass }}"
+
+      activate_trial: "{{ tsm_activate_trial }}"
+      product_key: "{{ tsm_product_key }}"
+
+      zip: "{{ tsm_zip }}"
+      country: "{{ tsm_country }}"
+      city: "{{ tsm_city }}"
+      last_name: "{{ tsm_last_name }}"
+      industry: "{{ tsm_industry }}"
+      title: "{{ tsm_title }}"
+      phone: "{{ tsm_phone }}"
+      company_name: "{{ tsm_company_name }}"
+      state: "{{ tsm_state }}"
+      department: "{{ tsm_department }}"
+      first_name: "{{ tsm_first_name }}"
+      email: "{{ tsm_email }}"
+
+      identity_store: "{{ tsm_identity_store }}"
+      sample_workbook_install: "{{ tsm_sample_workbook_install }}"
+
+      tableau_admin_user: "{{ tsm_tableau_admin_user }}"
+      tableau_admin_password: "{{ tsm_tableau_admin_password }}"

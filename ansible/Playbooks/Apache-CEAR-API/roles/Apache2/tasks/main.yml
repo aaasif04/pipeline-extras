@@ -1,0 +1,8 @@
+---
+  - name: Install apache packages
+    yum:
+      name: ['httpd', 'httpd-devel']
+      state: latest
+
+  - name: Enable and Start httpd service
+    systemd: name=httpd state=started daemon_reload=yes enabled=yes

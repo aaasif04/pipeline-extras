@@ -1,0 +1,20 @@
+---
+- name: Delete the Webroot directory
+  file:
+    path: "{{ deploy_dir }}"
+    state: absent
+
+- name: Create the webroot directory
+  file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    mode: 0755
+    owner: apache
+    group: apache
+
+- name: Deploy the latest build
+  copy:
+    src: "{{ temp_dir }}"
+    dest: "{{ deploy_dir }}/"
+    owner: apache
+    group: apache

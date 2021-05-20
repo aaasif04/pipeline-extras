@@ -1,0 +1,89 @@
+newVesion = '0.0.0'
+space = 'calib'
+s3Artifactory = 'lsm-artifactory'
+npm='/usr/bin/npm'
+environment='calib'
+ansiblePlaybook='/opt/ansible/bin/ansible-playbook'
+playbookFile='/tmp/codecommit/pai-infra-devops/Ansible/Deployment/cear-workbench/deploy.yaml'
+inventory_file='/tmp/inventory_file'
+pipeline{
+	agent any
+	stages{
+		stage('gitCheckout'){
+			steps{
+				checkout(
+                         [$class: 'GitSCM',
+	                     branches: [[name: '*/development']],
+	                     doGenerateSubmoduleConfigurations: false,
+	                     extensions: [[$class: 'RelativeTargetDirectory',
+	                     relativeTargetDir: './cear-workbench']],
+	                     submoduleCfg: [],
+	                    userRemoteConfigs: [[url: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/cear-workbench']]
+	                    ]
+                )
+
+			}
+		}
+        stage('gitCheckoutPipeLine'){
+            steps{
+                checkout(
+	                    [$class: 'GitSCM',
+	                    branches: [[name: '*/jenkins-LSMP1-276']],
+	                    doGenerateSubmoduleConfigurations: false,
+	                    extensions: [[$class: 'RelativeTargetDirectory',
+	                    relativeTargetDir: './pai-infra-devops']],
+	                    submoduleCfg: [],
+	                    userRemoteConfigs: [[url: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/pai-infra-devops']]
+                        ]
+                )
+            }
+        }
+        stage('getNewversion'){
+            steps{
+                script{
+                    newVersion = sh (script: 'cd ./cear-workbench/code/cear-workbench-app && npm version prerelease |awk -F \"v\" \'{print $2}\' ', returnStdout: true).trim()
+
+                }
+                echo "${newVersion}"
+            }
+        }
+        stage('Build'){
+            steps{
+                withEnv(["NPM=$npm"]){
+                    script{
+                        sh ' cd ./cear-workbench/code/cear-workbench-app && "$NPM" install'
+                        sh 'pwd'
+                        sh "cd ./cear-workbench/code/cear-workbench-app && $NPM run build:${environment}"
+                        sh 'cd ./cear-workbench/code/cear-workbench-app/build && tar -zcvf ../build.tgz * .htaccess'
+                     }
+                }
+            }
+        }
+
+        stage ('copyToArtifactory'){
+            steps{
+                script{
+                    sh 'pwd'
+                    sh "aws s3 cp ./cear-workbench/code/cear-workbench-app/build.tgz s3://${s3Artifactory}/${space}/cear-workbench/${newVersion}/"
+                }
+            }
+        }
+
+        stage ('deploy'){
+            steps{
+                ansiblePlaybook(
+                  become: true,
+	              disableHostKeyChecking: true,
+	              installation: 'ansible',
+	              inventory: './pai-infra-devops/cicd/cear-workbench/Ansible/inventory_file',
+	              playbook: './pai-infra-devops/cicd/cear-workbench/Ansible/calib-deploy.yaml',
+	              extraVars: [version: "${newVersion}", space: "${space}",]
+                )
+            }
+        }
+
+        
+
+		
+	}
+}

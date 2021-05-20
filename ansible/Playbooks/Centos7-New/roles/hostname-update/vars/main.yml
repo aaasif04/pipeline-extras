@@ -1,0 +1,2 @@
+---
+  LOCAL_HOSTNAME: "{{ inventory_hostname }}"

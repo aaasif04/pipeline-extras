@@ -1,0 +1,15 @@
+---
+- name: Get the correct version from Artifactory
+  hosts: localhost
+  gather_facts: False
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - get-build
+
+- name: Deploy the code into remote Server
+  hosts: uat-web-servers
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - deploy-build

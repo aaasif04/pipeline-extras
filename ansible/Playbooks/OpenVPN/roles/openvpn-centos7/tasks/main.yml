@@ -1,0 +1,167 @@
+---
+- name: install epel-release
+  yum: name=epel-release state=latest
+
+- name: upgrade all packages
+  yum: name=* state=latest
+
+- name: Install OpenVPN packages
+  yum: 
+    pkg: ['openvpn', 'wget', 'iptables-services']
+    state: installed
+
+- name: Download required easy-rsa2 from archives
+  get_url:
+    url: "{{ easy_rsa2_url }}"
+    dest: "/tmp/easyrsa"
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+  with_items:
+    - /etc/openvpn/easy-rsa
+    - /etc/openvpn/sampleconf
+    - /etc/openvpn/easy-rsa/keys
+    - /tmp/easy-rsa-old-2.3.3
+
+- name: Extract easyrsa2 tar file
+  unarchive:
+    src: /tmp/easyrsa
+    dest: /tmp/easy-rsa-old-2.3.3
+    extra_opts: [--strip-components=1]
+    remote_src: yes
+
+- name: Copy easyrsa to openvpn folder
+  copy: 
+    src: /tmp/easy-rsa-old-2.3.3/easy-rsa/2.0/
+    dest: /etc/openvpn/easy-rsa/
+    owner: root
+    mode: 0755
+    remote_src: yes
+
+- name: Create execute permission for the copied files
+  file:
+    path: /etc/openvpn/easy-rsa/
+    state: directory
+    mode: 0744
+    recurse: yes
+
+- name: Finding the openvpn documnetation directory
+  shell: ls -d /usr/share/doc/openvpn-*
+  register: openvpn_doc_dir
+
+- name: Copy sample server.conf from doc directory to openvpn
+  copy: 
+    src: "{{ openvpn_doc_dir.stdout }}/sample/sample-config-files/server.conf"
+    dest: "/etc/openvpn/server.conf"
+    owner: root
+    mode: 600
+    remote_src: yes
+
+- name: Edit openvpn config according to our evironment
+  replace:
+    path: "/etc/openvpn/server.conf"
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  with_items:
+    - { regexp: '^;user nobody', replace: 'user nobody' }
+    - { regexp: '^;group nobody', replace: 'group nobody' }
+    - { regexp: '^;topology subnet', replace: 'topology subnet' }
+    - { regexp: '^server 10.8.0.0 255.255.255.0', replace: 'server {{ openvpn_network }} 255.255.255.0' }
+    - { regexp: '^tls-auth', replace: ';tls-auth' }
+    - { regexp: '^cert server.crt', replace: 'cert paiserver.crt' }
+    - { regexp: '^key server.key', replace: 'key paiserver.key' }
+    - { regexp: '^;push "route 192.168.10.0 255.255.255.0"', replace: 'push "route {{ openvpn_network }} 255.255.255.0"'}
+    - { regexp: '^;push "route 192.168.20.0 255.255.255.0"', replace: 'push "route {{ aws_vpc_network }} 255.255.0.0"'}
+
+- name: Add TLS encryption lines to the openvpn config
+  lineinfile:
+    dest: "/etc/openvpn/server.conf"
+    insertafter: '^;tls-auth'
+    line: "{{ item }}"
+  with_items:
+    - "tls-crypt paivpn.tlsauth"
+    - "remote-cert-eku \"TLS Web Client Authentication\""
+    - "plugin /usr/lib64/openvpn/plugins/openvpn-plugin-auth-pam.so login"
+
+- name: Generating openvpn static encryption key
+  command: 'openvpn --genkey --secret /etc/openvpn/paivpn.tlsauth'
+
+- name: Edit default certificate variables
+  replace:
+    path: "/etc/openvpn/easy-rsa/vars"
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  with_items:
+    - { regexp: '^export KEY_COUNTRY="US"', replace: 'export KEY_COUNTRY="{{ KEY_COUNTRY }}"' }
+    - { regexp: '^export KEY_PROVINCE="CA"', replace: 'export KEY_PROVINCE="{{ KEY_PROVINCE }}"' }
+    - { regexp: '^export KEY_CITY="SanFrancisco"', replace: 'export KEY_CITY="{{ KEY_CITY }}"' }
+    - { regexp: '^export KEY_ORG="Fort-Funston"', replace: 'export KEY_ORG="{{ KEY_ORG }}"' }
+    - { regexp: '^export KEY_EMAIL="me@myhost.mydomain"', replace: 'export KEY_EMAIL="{{ KEY_EMAIL }}"' }
+    - { regexp: '^export KEY_EMAIL=mail@host.domain', replace: 'export KEY_EMAIL={{ KEY_EMAIL }}' }
+    - { regexp: '^export KEY_CN=changeme', replace: 'export KEY_CN={{ KEY_CN }}' }
+    - { regexp: '^export KEY_NAME=changeme', replace: 'export KEY_NAME=paiserver' }
+    - { regexp: '^export KEY_OU=changeme', replace: 'export KEY_OU=DevOps' }
+
+- name: Generating openvpn CA certificates
+  shell: "{{ item }}"
+  args:
+    chdir: /etc/openvpn/easy-rsa/
+  with_items:
+    - source ./vars && ./clean-all && ./build-ca --batch
+    - source ./vars && ./build-key-server --batch paiserver
+    - source ./vars && ./build-dh
+
+- name: Copy the server keys and certificates from the keys directory into the openvpn directory
+  copy: 
+    src: "{{ item.source }}"
+    dest: "{{ item.destination }}"
+    owner: root
+    mode: 0644
+    remote_src: yes
+  with_items:
+    - { source: '/etc/openvpn/easy-rsa/keys/dh2048.pem', destination: '/etc/openvpn/dh2048.pem' }
+    - { source: '/etc/openvpn/easy-rsa/keys/ca.crt', destination: '/etc/openvpn/ca.crt' }
+    - { source: '/etc/openvpn/easy-rsa/keys/paiserver.crt', destination: '/etc/openvpn/paiserver.crt' }
+    - { source: '/etc/openvpn/easy-rsa/keys/paiserver.key', destination: '/etc/openvpn/paiserver.key' }
+    - { source: '/etc/openvpn/easy-rsa/openssl-1.0.0.cnf', destination: '/etc/openvpn/easy-rsa/openssl.cnf' }
+
+- name: Enable and Start iptables service
+  systemd: name=iptables state=started enabled=yes
+
+- name: Flush iptables
+  iptables:
+    flush: yes
+
+- name: Forward vpn traffic through interface
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: "{{ ansible_default_ipv4.interface }}"
+    source: "{{ openvpn_network }}/24"
+    jump: MASQUERADE
+    comment: Redirect all vpn traffic to primary network
+
+- name: Saving iptables nat rules for server reboots
+  shell: iptables-save > /etc/sysconfig/iptables
+
+- name: Enable IP forwarding
+  lineinfile:
+    dest: "/etc/sysctl.conf"
+    line: "net.ipv4.ip_forward = 1"
+
+- name: Enable and Start openvpn service
+  systemd: name=openvpn@server.service state=started enabled=yes
+
+- name: Get the public IP of the instance for creating sample client conf
+  ipify_facts:
+
+- debug: var=ipify_public_ip
+
+- name: Copy the sample.conf template file to OpenVPN server
+  template: 
+    src: sample.conf.j2
+    dest: /etc/openvpn/sampleconf/skelton.conf
+    mode: 644

@@ -1,0 +1,8 @@
+---
+- hosts: tableaumaster
+  become: true
+  become_method: sudo
+  gather_facts: no
+  roles:
+    - role: tableau-initial
+    - role: tableau-initial-activation

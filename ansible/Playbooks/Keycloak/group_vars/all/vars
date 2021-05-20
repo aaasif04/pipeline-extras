@@ -1,0 +1,19 @@
+mysql_local_install: False
+
+mysql_host: "{{ vault_mysql_host }}" 
+keycloak_mysql_username: "{{ vault_mysql_user }}"
+keycloak_mysql_password: "{{ vault_mysql_pass }}"
+keycloak_mysql_db_name: "{{ vault_mysql_db }}"
+mysql_root_username: "{{ vault_mysql_root_user }}"
+mysql_root_pass: "{{ vault_mysql_root_pass }}"
+
+keycloak_admin: "{{ vault_keycloak_admin }}"
+keycloak_pass: "{{ vault_keycloak_pass }}"
+
+standalone_ha_installation: True
+ldaps_selfsigned_ssl_import: True
+
+ldaps_host_name: ldap.cear-uat.local
+ldaps_port: 636
+
+truststore_password: "{{ vault_truststore_password }}"

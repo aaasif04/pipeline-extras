@@ -1,0 +1,11 @@
+## Variables that will be used to deploy the build in target hosts"
+#Target Path for API venv.
+temp_dir: /tmp/sds-insights
+file_name: sds-insight-apis-1.0-SNAPSHOT.zip
+
+deploy_dir: /opt/sds-insights/
+#Port Number, that should use the API processs.
+PORT: 9443
+KILL: "/sbin/fuser -k"
+
+log_dir: /var/log/sds-insights/

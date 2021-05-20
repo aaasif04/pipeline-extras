@@ -1,0 +1,38 @@
+---
+- name: install epel-release
+  yum: name=epel-release state=latest
+
+- name: upgrade all packages
+  yum: name=* state=latest
+
+- name: Create tableau user group
+  group: name={{ sudo_user }} state=present
+
+- name: Create password hash for sudo user in user module
+  command: "python -c 'import crypt; print crypt.crypt(\"{{ sudo_user_pass }}\", \"$1$tableau$\")'"
+  register: tableau_sudo_pass
+ 
+- name: Creating sudo user for tableau
+  user: name={{ sudo_user }} password={{ tableau_sudo_pass.stdout }} shell=/bin/bash createhome=yes system=yes group={{ sudo_user }} home=/home/{{ sudo_user }}
+
+- name: Adding users to sudoers file and validate
+  lineinfile: "dest=/etc/sudoers insertafter=EOF line='{{ sudo_user }} ALL=(ALL) NOPASSWD: ALL'
+              regexp='^{{ sudo_user }} .*' state=present"
+
+- name:  Download TSM server rpm 
+  get_url: 
+    url: "{{ item }}"
+    dest: "{{ src_dir }}/"
+  with_items:
+    - "{{ tsm_rpm_url }}"
+    - "{{ postgresql_driver_rpm_url }}"
+  
+- name: Install rpm through yum 
+  yum: 
+    name: "['{{ src_dir }}/{{ tsm_rpm_url | basename }}', '{{ src_dir }}/{{ postgresql_driver_rpm_url | basename }}']"
+    state: present
+
+
+
+
+   

@@ -1,0 +1,29 @@
+---
+- hosts: dm1
+  user: tthomas
+  become: true
+  become_method: sudo
+  gather_facts: no
+
+  tasks:
+  - include_vars: users.yml
+
+  - name: Creating users
+    user: name={{ item.username }} shell=/bin/bash createhome=yes home=/home/{{ item.username }} comment={{ item.comment }}
+    with_items: '{{users}}'
+
+  - name: Adding ssh keys
+    authorized_key: user={{ item.username }}
+      key="{{ lookup('file', 'pub_keys/{{ item.username }}.pub') }}"
+      path='/home/{{ item.username }}/.ssh/authorized_keys'
+      manage_dir=yes
+    with_items: '{{users}}'
+
+ - name: Adding users to sudoers file and validate
+    lineinfile: "dest=/etc/sudoers
+      insertafter=EOF
+      line='{{ item.username }} ALL=(ALL) NOPASSWD: ALL'
+      regexp='^{{ item.username }} .*'
+      state=present"
+    when: '{{ item.use_sudo }} == True'
+    with_items: '{{users}}'

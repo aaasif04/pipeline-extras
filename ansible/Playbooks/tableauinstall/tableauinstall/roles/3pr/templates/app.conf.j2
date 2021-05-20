@@ -1,0 +1,21 @@
+
+<VirtualHost 0.0.0.0:{{ httpd_listen_port }}>
+    ServerAdmin  support@prevalent.ai
+    DocumentRoot /var/www/html/{{ apache_document_dir_name }}
+    ErrorLog /var/log/httpd/{{ apache_document_dir_name }}-error.log
+    CustomLog /var/log/httpd/{{ apache_document_dir_name }}-access.log combined
+
+    <Directory "/var/www/html/{{ apache_document_dir_name }}/admin">
+       Options Indexes FollowSymLinks Multiviews
+       MultiviewsMatch Any
+       AllowOverride All
+       Require all granted
+    </Directory>
+
+    <Directory "/var/www/html/{{ apache_document_dir_name }}/cw">
+       Options -Indexes +FollowSymLinks +Multiviews
+       MultiviewsMatch Any
+       AllowOverride All
+       Require all granted
+    </Directory>
+</VirtualHost>

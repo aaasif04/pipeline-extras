@@ -1,0 +1,5 @@
+---
+# vars file for syslog
+
+number_of_files_to_keep: 5
+

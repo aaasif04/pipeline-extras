@@ -1,0 +1,4 @@
+---
+## Variables that will be used to deploy the build in target hosts"
+#Directory nam of the webroot.Should avoid putting '/' in the end of the location.
+deploy_dir: /var/www/html/cear/cear-workbench

@@ -1,0 +1,11 @@
+---
+- name: Get the AWS region used for the instance
+  shell: curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep region | awk -F\" '{print $4}'
+  register: aws_region
+  
+- debug: msg={{ aws_region.stdout }}
+  
+- name: Install Amazon SSM agent
+  yum:
+    name: https://s3.{{ aws_region.stdout }}.amazonaws.com/amazon-ssm-{{ aws_region.stdout }}/latest/linux_amd64/amazon-ssm-agent.rpm
+    state: present

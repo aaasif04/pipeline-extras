@@ -1,0 +1,16 @@
+---
+- name: Log Rotation for systemd logs
+  host: all
+  gather_facts: false
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - syslog
+
+- name: Log Rotation for httpd logs
+  host: rest-server
+  gather_facts: false
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - httpd

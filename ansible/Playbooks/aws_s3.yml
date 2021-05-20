@@ -1,0 +1,7 @@
+- hosts: new
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: test
+      command: ["/usr/local/bin/aws", "s3", "ls", "s3://lsm-staging-cear"]

@@ -1,0 +1,11 @@
+---
+- hosts: caparizon
+  become: true
+  become_method: sudo
+  gather_facts: no
+
+  tasks:
+  - name: Create password hash for use in user module
+    command: "python -c 'import crypt; print crypt.crypt(\"{{ sudo_user_pass }}\", \"$1$tableau$\")'"
+    register: tableau_sudo_pass
+  - debug: msg={{ tableau_sudo_pass.stdout }}

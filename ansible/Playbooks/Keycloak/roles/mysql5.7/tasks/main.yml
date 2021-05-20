@@ -1,0 +1,40 @@
+---
+- name: Install mysql repo
+  yum: 
+    name: "{{ mysql_repo_url }}"
+    state: present
+
+- name: Install Mysql from mysql-community repo
+  yum: 
+    pkg: ['mysql-server', 'mysql', 'mysql-devel']
+    state: installed
+    disablerepo: mysql80-community
+    enablerepo: mysql57-community
+
+- name: Enable and Start Mysqld service
+  systemd: 
+    name: mysqld
+    state: started
+    daemon_reload: yes
+    enabled: yes
+
+- name: Get mysql temporary root password
+  shell: >
+    awk '$0 ~ "temporary password" {print $11}' {{ mysql_log_error }}
+  register: mysql_root_temp_password
+
+- debug:   msg={{ mysql_root_temp_password.stdout }}
+
+- name: Test temporary root password expired, It gives you error. Don't worry.
+  shell: "mysql -u root -p'{{ mysql_root_temp_password.stdout }}' -NBe 'SELECT NOW();'"
+  register: mysql_temp_password_test_result
+  when: mysql_root_temp_password is defined
+  ignore_errors: yes
+
+- name: Update MySQL root password for localhost root account (5.7.x).
+  shell: >
+    mysql -u root -p'{{ mysql_root_temp_password.stdout }}' -NBe
+    'ALTER USER "root"@"localhost"
+    IDENTIFIED WITH mysql_native_password BY "{{ mysql_root_pass }}";'
+    --connect-expired-password
+  when: mysql_temp_password_test_result is defined and 'connect-expired-password' in mysql_temp_password_test_result.stdout

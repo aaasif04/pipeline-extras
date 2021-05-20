@@ -1,0 +1,21 @@
+dn: olcDatabase={2}hdb,cn=config
+changetype: modify
+replace: olcSuffix
+olcSuffix: {{ ldap_root_dn }}
+-
+replace: olcRootDN
+olcRootDN: cn=ldapadm,{{ ldap_root_dn }}
+-
+replace: olcRootPW
+olcRootPW: {{ root_password.stdout }}
+-
+add: olcSyncRepl
+-
+add: olcDbIndex
+olcDbIndex: entryUUID  eq
+-
+add: olcDbIndex
+olcDbIndex: entryCSN  eq
+-
+add: olcMirrorMode
+olcMirrorMode: TRUE

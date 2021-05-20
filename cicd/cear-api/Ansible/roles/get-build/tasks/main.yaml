@@ -1,0 +1,32 @@
+---
+#- name: Install boto3 using pip
+#  pip:
+#    name: boto3
+#    executable: pip3.6
+
+- name: Remove the temp directory if it exist
+  file:
+    path: "{{ temp_dir }}"
+    state: absent
+
+- name: Create the Temp directory
+  file:
+    path: "{{ temp_dir }}"
+    state: directory
+    mode: 0755
+
+- name: Get the file using S3 command
+  command: /usr/local/bin/aws s3 cp s3://{{ s3_bucket }}/{{ env }}/cear-api/{{ version }}/build.tgz ./build.tgz
+
+#- name: Get the deployable version from S3
+#  amazon.aws.aws_s3:
+#    bucket: "{{ s3_bucket }}"
+#    object: "{{ env }}/cear-api/{{ version }}/build.tgz"
+#    dest: "./build.tgz"
+#    mode: get
+
+- name: Unzip the the Archive file
+  unarchive:
+    src: "./build.tgz"
+    dest: "{{ temp_dir }}"
+    

@@ -1,0 +1,13 @@
+---
+- hosts: cear-uat-ldap-1,cear-uat-ldap-2
+  become: true
+  become_method: sudo
+  gather_facts: yes
+  roles:
+    - role: Selinux
+    - role: ldap-installation
+    - role: ldap-log-management
+    - role: ldaps-configuration
+    - role: ldap-cluster-configuration
+    #- role: ldap-standalone-configuration
+    - role: LDAP-phpldapadmin

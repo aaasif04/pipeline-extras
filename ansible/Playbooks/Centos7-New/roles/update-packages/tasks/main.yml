@@ -1,0 +1,20 @@
+---
+  - name: upgrade all packages
+    yum: name=* state=latest
+
+  - name: Install neccessary packages
+    yum:
+      name: ['epel-release', 'vim', 'wget', 'mlocate', 'ntpdate']
+      state: latest
+
+  - name: upgrade all packages once again
+    yum: name=* state=latest
+
+  - name: Sync time now
+    command: '/sbin/ntpdate -b pool.ntp.org'
+
+  - name: Add ntpdate time sync to cron
+    copy:
+      content: |
+        */30 * * * * root /sbin/ntpdate -b pool.ntp.org
+      dest: /etc/cron.d/ntpdate

@@ -1,0 +1,18 @@
+  - hosts: all
+    gather_facts: false
+    vars:
+      list_of_ssh_ports: [22, 9922]
+    tasks:
+    - name: test ssh on port
+      sudo: no
+      local_action: wait_for port={{item}} timeout=5 host={{inventory_hostname}}
+      register: ssh_checks
+      with_items: "{{list_of_ssh_ports}}"
+      ignore_errors: true
+    - debug: msg = "{{item}}"
+      with_items: "{{ssh_checks.results}}"
+    - name: set available ansible_ssh_port 
+      sudo: no
+      set_fact: ansible_ssh_port={{item.item}}
+      when: ssh_checks is defined and {{item.elapsed}} < 5
+      with_items: "{{ssh_checks.results}}"

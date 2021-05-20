@@ -1,0 +1,13 @@
+---
+- name: Finding the Tableau customer bin directory and version3
+  shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+  register: tsm_bin_dir
+
+- debug: msg={{ tsm_bin_dir.stdout }}
+
+
+- name: Enable Trusted Authentication
+  command: '{{ tsm_bin_dir.stdout }}/tsm authentication trusted configure -th {{ tsm_trusted_hosts }}'
+
+- name: Apply pending changes
+  command: '{{ tsm_bin_dir.stdout }}/tsm pending-changes apply --ignore-prompt'

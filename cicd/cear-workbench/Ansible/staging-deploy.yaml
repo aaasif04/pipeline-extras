@@ -1,0 +1,15 @@
+---
+- name: Get the correct version from Artifactory
+  hosts: localhost
+  gather_facts: False
+  any_errors_fatal: true
+  become: false
+  roles:
+    - get-build
+
+- name: Deploy the code into remote Server
+  hosts: staging-web-servers
+  any_errors_fatal: true
+  become: yes
+  roles:
+    - deploy-build

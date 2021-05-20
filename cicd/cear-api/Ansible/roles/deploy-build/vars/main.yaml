@@ -1,0 +1,6 @@
+## Variables that will be used to deploy the build in target hosts"
+#Target Path for API venv.
+deploy_dir: /opt/cear_apis
+#Port Number, that should use the API processs.
+PORT: 8000
+KILL: "/sbin/fuser -k"

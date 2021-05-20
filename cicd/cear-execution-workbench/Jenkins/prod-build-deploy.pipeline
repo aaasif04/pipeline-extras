@@ -1,0 +1,77 @@
+    newVesion = '0.0.0'
+    space = 'prod'
+    s3Artifactory = 'lsm-artifactory'
+    s3Deploy = 's3://cear-prod-data'
+    jobname='cear-execution-workbench'
+    gradleHome = '/opt/gradle/'
+    jenkinsHome = '/var/lib/jenkins/workspace'
+    pipeline {
+        agent any
+        stages{
+            stage('gitCheckout'){
+            steps{
+                    checkout(
+                        [$class: 'GitSCM',
+                        branches: [[name: '*/release-0.6.4']],
+                        userRemoteConfigs: [[url: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/cear-execution-workbench']]
+                    ]
+                    )
+                }
+            }
+
+            stage('getNewVersion') {
+                steps{
+                    script{
+                        newVersion = sh (script: '/opt/gradle/bin/gradle -q  properties |grep version |awk -F \":\" \'{print $2}\' ', returnStdout: true).trim()
+
+                    }
+                }
+                
+            }
+            stage('useVersion'){
+                steps{
+                    echo "${newVersion}"
+                }
+            }
+
+            stage('Build') {
+                steps{
+                    withEnv(["GRADLE_HOME=$gradleHome"]) {
+                
+                        sh '"$GRADLE_HOME/bin/gradle"  clean buildFatJar'
+            
+                    }
+                }
+            }
+
+            stage('copyToArtifactory'){
+                steps{
+                    echo "${s3Artifactory}"
+                    script{
+                        sh 'echo s3Artifactory=$s3Artifactory'
+                        sh 'ls build/libs/*.jar'
+                        sh "/usr/local/bin/aws s3 ls ${s3Artifactory}"
+                        sh "/usr/local/bin/aws s3 cp build/libs/*.jar s3://${s3Artifactory}/${space}/${jobname}/${newVersion}/"
+                        sh "/usr/local/bin/aws s3 cp src/main/scala/ai/prevalent/cear/preprocessing/PreProcessingJob.scala s3://${s3Artifactory}/${space}/${jobname}/${newVersion}/"
+                        sh "/usr/local/bin/aws s3 cp src/main/scala/ai/prevalent/cear/modelexecution/CearModelExecutionJob.scala s3://${s3Artifactory}/${space}/${jobname}/${newVersion}/"
+                        sh "/usr/local/bin/aws s3 cp src/main/scala/ai/prevalent/cear/reporting/CearReportGenerator.scala s3://${s3Artifactory}/${space}/${jobname}/${newVersion}/"
+                    }
+                }
+            
+            }
+            stage('deploy'){
+                steps{
+                    script{
+                        newBuild = sh (script: "/usr/local/bin/aws s3 ls s3://${s3Artifactory}/${space}/${jobname}/ | sort |tail -1 |awk \'{print \$2}\'",returnStdout: true).trim()
+                        echo "${newBuild}"
+                        sh "/usr/local/bin/aws s3 cp s3://${s3Artifactory}/${space}/${jobname}/${newBuild}cear-execution-workbench-prod-uber.jar ${s3Deploy}/${jobname}/lib/ --sse aws:kms"
+                        sh "/usr/local/bin/aws s3 cp s3://${s3Artifactory}/${space}/${jobname}/${newBuild}CearModelExecutionJob.scala  ${s3Deploy}/${jobname}/bin/ --sse aws:kms"
+                        sh "/usr/local/bin/aws s3 cp s3://${s3Artifactory}/${space}/${jobname}/${newBuild}CearReportGenerator.scala  ${s3Deploy}/${jobname}/bin/ --sse aws:kms"
+                        sh "/usr/local/bin/aws s3 cp s3://${s3Artifactory}/${space}/${jobname}/${newBuild}PreProcessingJob.scala ${s3Deploy}/${jobname}/bin/ --sse aws:kms"
+
+                    }
+                }
+            }
+        }   
+        
+    }

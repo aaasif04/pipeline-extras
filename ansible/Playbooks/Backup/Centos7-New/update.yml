@@ -1,0 +1,18 @@
+---
+- hosts: new
+  become: true
+  become_method: sudo
+  gather_facts: no
+
+  tasks:
+  #Update entire system
+  - name: upgrade all packages
+    yum: name=* state=latest
+
+  - name: Install neccessary packages
+    yum:
+      name: ['epel-release', 'vim', 'wget', 'mlocate']
+      state: latest
+
+  - name: upgrade all packages once again
+    yum: name=* state=latest

@@ -1,0 +1,8 @@
+{
+    "configEntities": {
+        "shareProductUsageDataSettings": {
+            "_type": "shareProductUsageDataSettingsType",
+            "enabled": "false"
+        }
+    }
+}

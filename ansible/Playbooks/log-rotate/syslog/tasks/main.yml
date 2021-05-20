@@ -1,0 +1,9 @@
+---
+name: deploy the template
+template:
+  src: syslog.j2
+  dest: /etc/logrotate.d/syslog
+  owner: root
+  group: root
+  mode: 0644
+  

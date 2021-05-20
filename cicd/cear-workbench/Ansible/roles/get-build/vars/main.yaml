@@ -1,0 +1,5 @@
+---
+###Define the variables to get the build from Artifactory##
+#S3 bucket Name, that is used as Artifactory
+s3_bucket: lsm-artifactory
+#This variable identifies in which environement we will be deploying the code.

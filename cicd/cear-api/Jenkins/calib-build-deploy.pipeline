@@ -1,0 +1,77 @@
+space='calib'
+project='cear-api'
+newVesion = '0.0.0'
+s3Artifactory = 'lsm-artifactory'
+
+pipeline{
+    agent any
+    stages{
+        stage('gitCheckout'){
+			steps{
+				checkout(
+                         [$class: 'GitSCM', 
+	                     branches: [[name: '*/development']],
+	                     doGenerateSubmoduleConfigurations: false,
+	                     extensions: [[$class: 'RelativeTargetDirectory',
+	                     relativeTargetDir: './cear-api']],
+	                     submoduleCfg: [],
+	                    userRemoteConfigs: [[url: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/cear_apis']]
+	                    ]
+                )
+
+			}
+		}
+
+        stage('gitCheckoutPipeLine'){
+            steps{
+                checkout(
+	                    [$class: 'GitSCM', 
+	                    branches: [[name: '*/jenkins-LSMP1-276']],
+	                    doGenerateSubmoduleConfigurations: false,
+	                    extensions: [[$class: 'RelativeTargetDirectory',
+	                    relativeTargetDir: './pai-infra-devops']],
+	                    submoduleCfg: [],
+	                    userRemoteConfigs: [[url: 'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/pai-infra-devops']]
+                        ]
+                )
+            }
+        }
+        stage('getVersion'){
+            steps{
+                script{
+
+                      newVersion = sh (script: " grep version cear-api/app_config/${space}.sh |awk -F \"=\" \'{print \$2}\' ", returnStdout: true).trim()
+                     
+                }
+            }
+        }
+        stage('createBuild'){
+            steps{
+                script{
+                    sh 'cd ./cear-api && tar -czvf ../build.tgz *'
+
+                }
+            }
+        }
+        stage ('copyToArtifactory'){
+            steps{
+                script{
+                    sh 'pwd'
+                    sh "aws s3 cp ./build.tgz s3://${s3Artifactory}/${space}/${project}/${newVersion}/"
+                }
+            }
+        }
+        stage ('deploy'){
+            steps{
+                ansiblePlaybook(
+                  become: true,
+	              disableHostKeyChecking: true,
+	              installation: 'ansible',
+	              inventory: './pai-infra-devops/cicd/cear-api/Ansible/inventory_file',
+	              playbook: './pai-infra-devops/cicd/cear-api/Ansible/calib-deploy.yaml',
+	              extraVars: [version: "${newVersion}", env: "${space}",]
+                )
+            }
+        }
+    }
+}

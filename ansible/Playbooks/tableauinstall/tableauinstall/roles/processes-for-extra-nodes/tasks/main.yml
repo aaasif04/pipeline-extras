@@ -1,0 +1,30 @@
+---
+- name: Finding the Tableau customer bin directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+  register: tsm_bin_dir
+
+- name: Add services for the nodes
+  command: "{{ tsm_bin_dir.stdout }}/tsm topology set-process -n node{{ item[0] }} -pr {{ item[1].tsm_process }} -c {{ item[1].count }}"
+  with_nested:
+    - "{{ lookup('sequence','start=2 end='+\"{{ total_additional_nodes + 1 }}\"|string,wantlist=True) }}"
+    - "{{ processes }}"
+  when: 
+    - overide_default_process_allocation == False
+    - (item[1].tsm_process != "pgsql") or (item[0] == '2' and item[1].tsm_process == "pgsql")
+  ignore_errors: yes
+
+- name: Add services for the nodes if overide_default_process_allocation is true
+  command: "{{ tsm_bin_dir.stdout }}/tsm topology set-process -n node{{ item.0.node }} -pr {{ item.1.tsm_process }} -c {{ item.1.count }}"
+  with_subelements:
+    - "{{ non_default_node_processes }}"
+    - tsm_process
+  when: overide_default_process_allocation == True
+  ignore_errors: yes
+
+- name: Apply pending changes now
+  command: '{{ tsm_bin_dir.stdout }}/tsm pending-changes apply --ignore-prompt --ignore-warnings'
+  ignore_errors: yes
+
+- name: Start TSM . Will take some time..Please wait...
+  command: "{{ tsm_bin_dir.stdout }}/tsm start"
+  ignore_errors: yes

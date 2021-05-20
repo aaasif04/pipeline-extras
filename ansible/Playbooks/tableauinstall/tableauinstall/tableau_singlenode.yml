@@ -1,0 +1,17 @@
+#---
+#- hosts: tableaumaster
+#  become: true
+#  become_method: sudo
+#  gather_facts: no
+#  roles:
+#    - role: selinux-disable
+#    - role: tableau-initial
+#    - role: tableau-initial-activation
+
+- hosts: tableaumaster
+  become: true
+  become_method: sudo
+  gather_facts: no
+  roles:
+    - role: enabble-openIDP-authentication
+    - role: trusted-authentication

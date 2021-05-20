@@ -1,0 +1,153 @@
+---
+  - name: Ensure required python module dependencies are installed.
+    pip:
+      name: ['pyOpenSSL', 'pexpect']
+      state: present
+
+  - name: Create a directory if it does not exist
+    file: path={{ ldif_location }} state=directory mode='0755'
+
+  - name: Set up LDAP database
+    copy:
+      src: /usr/share/openldap-servers/DB_CONFIG.example
+      dest: /var/lib/ldap/DB_CONFIG
+      owner: ldap
+      group: ldap
+      mode: u=rw,g=r,o=r
+      remote_src: yes
+
+  - name: Chage owner of files copied
+    file: path=/var/lib/ldap/ owner=ldap group=ldap state=directory recurse=yes
+
+  - name: Copy syncprov_mod.ldif template
+    template: src=syncprov_mod.ldif.j2 dest={{ ldif_location }}/syncprov_mod.ldif
+
+  - name: Enable the syncprov module
+    command: ldapadd -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/syncprov_mod.ldif
+    register: syncprov_output
+    ignore_errors: yes
+ 
+  - name: Copy replication config template
+    template: src=olcserverid.ldif.j2 dest={{ ldif_location }}/olcserverid.ldif
+
+  - name: Enable Config Replication
+    command: ldapmodify -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/olcserverid.ldif
+    register: replication_output
+    ignore_errors: yes
+
+  - name: Setup LDAP admin password. Run task only on one host
+    shell: slappasswd -s '{{ ldap_admin_password }}'
+    register: root_password 
+    run_once: true
+
+  - name: Copy configuration database template
+    template: src=olcdatabase.ldif.j2 dest={{ ldif_location }}/olcdatabase.ldif
+
+  - name: Enable database Config
+    command: ldapmodify -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/olcdatabase.ldif
+    register: database_output
+    ignore_errors: yes
+
+  - name: Copy template for replication parameters
+    template: src=configrep.ldif.j2 dest={{ ldif_location }}/configrep.ldif
+
+  - name: Add ldap server id and ldap url details to replication template
+    lineinfile: 
+      dest: "{{ ldif_location }}/configrep.ldif"
+      regexp: '.*{{ item }}$'
+      line: "olcServerID: {{ server_id + 1}} ldap://{{ hostvars[item].ansible_host }}"
+      state: present
+      insertafter: '^replace: olcServerID'
+    loop: "{{ ansible_play_batch }}"
+    loop_control:
+      index_var: server_id
+
+  - name: Adding replication servers values to replication template
+    lineinfile: 
+      dest: "{{ ldif_location }}/configrep.ldif"
+      regexp: '.*{{ item }}$'
+      line: "olcSyncRepl: rid=00{{ server_id + 1}} provider=ldap://{{ hostvars[item].ansible_host }} binddn=\"cn=config\" \n
+                bindmethod=simple credentials={{ ldap_admin_password }} searchbase=\"cn=config\" \n
+                type=refreshAndPersist retry=\"5 5 300 5\" timeout=1"
+      state: present
+      insertafter: '^add: olcSyncRepl'
+    loop: "{{ ansible_play_batch }}"
+    loop_control:
+      index_var: server_id
+
+  - name: Enable Replication parameters in ldap servers
+    command: ldapmodify -Y EXTERNAL -H ldapi:/// -f {{ ldif_location }}/configrep.ldif
+    register: rep_parm_output
+    ignore_errors: yes
+
+  - name: Copy syncprov for hdb template. Run task only on one host
+    template: src=syncprov.ldif.j2 dest={{ ldif_location }}/syncprov.ldif
+    run_once: true
+
+  - name: Enable syncprov for hdb database. Run task only on one host
+    command: ldapmodify -Y EXTERNAL -H ldapi:/// -f {{ ldif_location }}/syncprov.ldif
+    run_once: true
+
+  - name: Copy replication values for hdb template. Run task only on one host 
+    template: src=olcdatabasehdb.ldif.j2 dest={{ ldif_location }}/olcdatabasehdb.ldif
+    run_once: true
+
+  - name: Adding replication servers values to replication hdb template. Run task only on one host
+    lineinfile: 
+      dest: "{{ ldif_location }}/olcdatabasehdb.ldif"
+      regexp: '.*{{ item }}$'
+      line: "olcSyncRepl: rid=00{{ server_id + ((ansible_play_batch |length) + 1) }} provider=ldap://{{ hostvars[item].ansible_host }} binddn=\"cn=ldapadm,{{ ldap_root_dn }}\" bindmethod=simple \n
+                credentials={{ ldap_admin_password }} searchbase=\"{{ ldap_root_dn }}\" type=refreshOnly \n
+                interval=00:00:00:10 retry=\"5 5 300 5\" timeout=1"
+      state: present
+      insertafter: '^add: olcSyncRepl'
+    loop: "{{ ansible_play_batch }}"
+    loop_control:
+      index_var: server_id
+    run_once: true
+  
+  - name: Enable Replication parameters in hdb database. Run task only on one host
+    command: ldapmodify -Y EXTERNAL -H ldapi:/// -f {{ ldif_location }}/olcdatabasehdb.ldif
+    register: rep_hdb_parm_output
+    ignore_errors: yes
+    run_once: true
+
+  - name: Copy OpenLDAP monitor.ldif template file and configure it. Run task only on one host
+    template:
+      src: monitor.ldif.j2
+      dest: "{{ ldif_location }}/monitor.ldif"
+    run_once: true 
+    
+  - name: Send the configuration monitor.ldif to the LDAP server. Run task only on one host
+    command: ldapmodify -Y EXTERNAL  -H ldapi:/// -f {{ ldif_location }}/monitor.ldif
+    run_once: true
+
+  - name: Add the cosine and nis LDAP schemas. Run task only on one host
+    command: "{{ item }}"
+    with_items:
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif 
+      - ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+    register: fail_output
+    ignore_errors: yes
+    run_once: true
+
+  - name: Copy OpenLDAP base.ldif template file and configure it. Run task only on one host
+    template:
+      src: base.ldif.j2
+      dest: "{{ ldif_location }}/base.ldif"
+    run_once: true
+
+  - name: Send the configuration base.ldif to the LDAP server. Run task only on one host
+    expect:
+      command: ldapadd -x -W -D "cn=ldapadm,{{ ldap_root_dn }}" -f {{ ldif_location }}/base.ldif
+      responses:
+        (?i)password: "{{ ldap_admin_password }}"
+    no_log: false
+    run_once: true
+    
+  - name: "Enable ldap chnages in slapd for fixing the error:no serverID / URL match found on restart"
+    replace:
+      path: /etc/sysconfig/slapd
+      regexp: '"ldapi:/// ldap:///'
+      replace: "\"ldapi:/// ldap://127.0.0.1 ldap://{{ ansible_default_ipv4.address }}"

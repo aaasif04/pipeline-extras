@@ -1,0 +1,14 @@
+---
+  - name: Install epel-release packages for installation dependencies
+    yum:
+      name: ['epel-release', 'vim', 'wget', 'mlocate']
+      state: latest
+  
+  - name: Install OpenLDAP Packages
+    yum:
+      name: ['openldap', 'compat-openldap', 'openldap-clients', 'openldap-servers', 'openldap-servers-sql', 'openldap-devel', 'python-pip']
+      state: latest
+
+  - name: Enable and Start LDAP slapd service
+    systemd: name=slapd state=started daemon_reload=yes enabled=yes
+

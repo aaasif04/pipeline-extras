@@ -1,0 +1,7 @@
+---
+- hosts: cear-uat-public
+  become: true
+  become_method: sudo
+  gather_facts: yes #Need to set gather_facts to yes
+  roles:
+    - role: openvpn-centos7

@@ -1,0 +1,8 @@
+---
+- hosts: tableaumaster
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Checking OS Distribution
+      debug: msg="{{ ansible_distribution }}"

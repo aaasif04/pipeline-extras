@@ -1,0 +1,3 @@
+---
+- name: Apply pending changes
+  command: '{{ tsm_bin_dir.stdout }}/tsm pending-changes apply --ignore-prompt --ignore-warnings'

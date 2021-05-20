@@ -1,0 +1,14 @@
+
+<VirtualHost 0.0.0.0:80>
+    ServerAdmin  support@prevalent.ai
+    DocumentRoot /var/www/html/{{ apache_document_dir_name }}
+    ErrorLog /var/log/httpd/{{ apache_document_dir_name }}-error.log
+    CustomLog /var/log/httpd/{{ apache_document_dir_name }}-access.log combined
+
+    <Directory "/var/www/html/{{ apache_document_dir_name }}/cear-workbench">
+       Options Indexes FollowSymLinks Multiviews
+       MultiviewsMatch Any
+       AllowOverride All
+       Require all granted
+    </Directory>
+</VirtualHost>

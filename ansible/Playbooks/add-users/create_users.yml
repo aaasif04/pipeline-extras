@@ -1,0 +1,79 @@
+---
+- hosts: new
+  become: true
+  become_method: sudo
+  gather_facts: no
+
+  tasks:
+  - include_vars: users.yml
+
+  - name: create paiadmins group
+    group:
+     name: paiadmins
+     state: present
+
+  - name: create developers group
+    group:
+     name: devteam
+     state: present
+
+  - name: create caparizon group
+    group:
+     name: caparizon
+     state: present
+
+  - name: Adding SSH AllowGroups
+    lineinfile: dest=/etc/ssh/sshd_config regexp='^AllowGroups' line='AllowGroups paiadmins devteam caparizon'
+  - name: Adding AllowUsers
+    lineinfile: dest=/etc/ssh/sshd_config regexp='^AllowUsers' line='AllowUsers paiadmins' 
+
+  #- name: Create users directory
+  #  file:
+  #   path: /home/users/
+  #   state: directory
+  #   group: root
+  #   owner: root
+
+  #- name: Adding paiadmins to sudoers
+  #  lineinfile:
+  #   path: /etc/sudoers
+  #   state: present
+  #   line: "paiadmins    ALL=(ALL)       ALL"
+
+  - name: Creating paiadmin users
+    user: name={{ item.username }} shell=/bin/bash createhome=yes group=paiadmins home=/home/{{ item.username }} comment={{ item.comment }}
+    with_items: '{{users}}'
+    when: item.group == "paiadmins"
+  
+  - name: Creating devteam users
+    user: name={{ item.username }} shell=/bin/bash createhome=yes group=devteam home=/home/{{ item.username }} comment={{ item.comment }}
+    with_items: '{{users}}'
+    when: item.group == "devteam"
+
+  - name: Creating caparizon users
+    user: name={{ item.username }} shell=/bin/bash createhome=yes group=caparizon home=/home/{{ item.username }} comment={{ item.comment }}
+    with_items: '{{users}}'
+    when: item.group == "caparizon"
+
+  - name: Adding users to AllowUsers
+    replace: dest=/etc/ssh/sshd_config regexp='^(AllowUsers(?!.*\b{{ item.username }}\b).*)$' replace='\1 {{ item.username }}'
+    with_items: '{{users}}'
+
+  - name: Adding ssh keys
+    authorized_key: user={{ item.username }}
+      key="{{ lookup('file', 'pub_keys/{{ item.username }}.pub') }}"
+      path='/home/{{ item.username }}/.ssh/authorized_keys'
+      manage_dir=yes
+    with_items: '{{users}}'
+
+  - name: Adding users to sudoers file and validate
+    lineinfile: "dest=/etc/sudoers
+      insertafter=EOF
+      line='{{ item.username }} ALL=(ALL) NOPASSWD: ALL'
+      regexp='^{{ item.username }} .*'
+      state=present"
+    when: item.use_sudo == True
+    with_items: '{{users}}'
+
+  - name: restart sshd
+    systemd: name=sshd state=restarted

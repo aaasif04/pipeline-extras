@@ -1,0 +1,12 @@
+---
+- hosts: lsm
+  become: true
+  become_method: sudo
+  gather_facts: yes
+  roles:
+    #- role: update-packages
+    #- role: selinux-disable
+    #- role: hostname-update
+    #- role: update-hostsfile-all
+    #- role: add-users
+    - role: amazon-ssm-agent

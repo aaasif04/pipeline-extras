@@ -1,0 +1,39 @@
+---
+- name: Finding the Tableau customer bin directory and version
+  shell: ls -d /opt/tableau/tableau_server/packages/customer-bin*
+  register: tsm_bin_dir
+
+- debug: msg={{ tsm_bin_dir.stdout }}
+
+- name: Add clusters to Master node
+  command: '{{ tsm_bin_dir.stdout }}/tsm topology set-process -n node{{ item }} -pr clustercontroller -c 1'
+  with_sequence: start=2 end={{ total_additional_nodes + 1 }}
+  ignore_errors: yes
+
+- name: Apply pending changes now
+  command: '{{ tsm_bin_dir.stdout }}/tsm pending-changes apply --ignore-prompt --ignore-warnings'
+
+- name: Stop TSM
+  command: '{{ tsm_bin_dir.stdout }}/tsm stop'
+  notify: Apply pending changes
+
+- name: List nodes
+  command: '{{ tsm_bin_dir.stdout }}/tsm topology list-nodes'
+  register: tsm_list_nodes
+
+- debug: msg={{ tsm_list_nodes.stdout.split() |join(',') }}
+
+- name: Deploying a Coordination Service ensemble on all nodes including node1
+  command: "{{ tsm_bin_dir.stdout }}/tsm topology deploy-coordination-service -n {{ tsm_list_nodes.stdout.split() |join(',') }} --ignore-prompt"
+  when: 
+    - tsm_list_nodes.stdout_lines|length is odd
+    - tsm_list_nodes.stdout_lines|length|int > 1
+
+- name: Start TSM . Will take some time..Please wait...
+  command: "{{ tsm_bin_dir.stdout }}/tsm start"
+
+- name: Configuring Client File Services (CFS) on additional nodes
+  command: '{{ tsm_bin_dir.stdout }}/tsm topology set-process -n node{{ item }} -pr clientfileservice -c 1'
+  with_sequence: start=2 end={{ total_additional_nodes + 1 }}
+  ignore_errors: yes
+  notify: Apply pending changes

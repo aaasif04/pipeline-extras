@@ -1,0 +1,86 @@
+---
+- name: Install the OS Pre-requisites
+  yum:
+    name:
+      - python3
+      - python3-pip
+      - postgresql
+      - python-virtualenv
+      - python3-devel
+      - postgresql-devel
+      - psmisc
+      - "@Development tools"
+    state: present
+
+- name: Kill the current API process
+  shell: "{{ KILL }} {{ PORT }}/tcp"
+  ignore_errors: True
+
+- name: Cleanup the deployment path
+  file:
+    path: "{{ deploy_dir }}"
+    state: absent
+
+- name: Create the Deployment Path
+  file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Make sure the log directory exist
+  file:
+    path: /var/log/cear
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Copy the build
+  copy:
+    src: "{{ temp_dir }}"
+    dest: "{{ deploy_dir }}/"
+    owner: root
+    group: root
+
+- name: Create virtual environment using python3
+  command: virtualenv -p /usr/bin/python3 {{ deploy_dir}}/venv
+
+- name: Install the Python dependencies
+  pip:
+    requirements: "{{ deploy_dir }}/requirements.txt"
+    virtualenv: "{{ deploy_dir }}/venv"
+
+- name: Remove oauth2_provider migrations
+  file: 
+    path: "{{ deploy_dir }}/venv/lib/python3.6/site-packages/oauth2_provider/migrations/000*.py"
+    state: absent
+
+- name: Remove oauth2_provider mgratons
+  shell: "find {{ deploy_dir }}/venv/lib/python3.6/site-packages/oauth2_provider/migrations -name 000*.py -type f -exec rm  {} \\;"
+
+- name: Set the execute permission for the startup script
+  file:
+    path: "{{ deploy_dir }}/start_server.sh"
+    mode: 0755
+
+- name: Set the execute permission for the startup script
+  file:
+    path: "{{ deploy_dir }}/db_populate.sh"
+    mode: 0755
+  
+- name: DB Populate script
+  command: "{{ deploy_dir }}/db_populate.sh"
+  run_once: true
+  environment:
+    DEPLOY_DIR: "{{ deploy_dir }}"
+    ENV: "{{ env }}"
+
+- name: Start the script
+  command: "{{ deploy_dir }}/start_server.sh"
+  environment:
+    DEPLOY_DIR: "{{ deploy_dir }}"
+    ENV: "{{ env }}"
+    PORT: "{{ PORT }}"
+    GUNICORN_WORKERS: "{{ GUNICORN_WORKERS }}"

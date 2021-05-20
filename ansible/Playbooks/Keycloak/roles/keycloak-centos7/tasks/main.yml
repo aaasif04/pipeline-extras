@@ -1,0 +1,219 @@
+---
+- name: Set mysql hostame
+  set_fact: 
+    mysql_hostname: "{{'localhost' if (mysql_local_install == True) else '{{ mysql_host }}'}}"
+    mysql_root_user: "{{'root' if (mysql_local_install == True) else '{{ mysql_root_username }}'}}"
+    mysql_user_host: "{{'localhost' if (mysql_local_install == True) else '{{ ansible_default_ipv4.address }}'}}"
+  
+- debug:
+    msg: 
+      - "Mysql Hostname = {{ mysql_hostname }}"
+      - "Mysql Root User = {{ mysql_root_user }}"
+      - "Mysql User Host = {{ mysql_user_host }}"
+
+- name: install epel-release
+  yum: name=epel-release state=latest
+
+- name: upgrade all packages
+  yum: name=* state=latest
+
+- name: Install Java 8 and MySQL-python for ansible mysql module
+  yum: 
+    #pkg: ['java-1.8.0-openjdk', 'MySQL-python']
+    pkg: ['https://vault.centos.org/7.8.2003/updates/x86_64/Packages/java-1.8.0-openjdk-headless-1.8.0.262.b10-0.el7_8.x86_64.rpm', 'https://vault.centos.org/7.8.2003/updates/x86_64/Packages/java-1.8.0-openjdk-1.8.0.262.b10-0.el7_8.x86_64.rpm', 'MySQL-python']
+    state: installed
+
+- name: Create keycloak user group
+  group: name=keycloak state=present
+
+- name: Creating keycloak user
+  user: name=keycloak shell=/sbin/nologin createhome=yes system=yes group=keycloak home=/var/lib/keycloak
+
+- name: Download required zip archives
+  get_url:
+    url: "{{ item }}"
+    dest: "{{ source_dir }}"
+  with_items:
+    - "{{ keycloak_download_url }}"
+    - "{{ mysql_connector_url }}"
+  register: packages_download
+
+- name: Creating mysql user for keycloak
+  mysql_user:
+    name: "{{ keycloak_mysql_username }}"
+    password: "{{ keycloak_mysql_password }}"
+    host: "{{ mysql_user_host }}"
+    priv: "{{ keycloak_mysql_db_name }}.*:ALL"
+    state: present
+    login_user: "{{ mysql_root_user }}"
+    login_password: "{{ mysql_root_pass }}"
+    login_host: "{{ mysql_hostname }}"
+
+- name: Creating mysql database for keycloak
+  mysql_db:
+    name: "{{ keycloak_mysql_db_name }}"
+    state: present
+    login_user: "{{ mysql_root_user }}"
+    login_password: "{{ mysql_root_pass }}"
+    login_host: "{{ mysql_hostname }}"
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+  with_items:
+    - /opt/keycloak/
+    - /opt/keycloak/{{ keycloak_version }}
+    - /opt/keycloak/{{ keycloak_version }}/cert
+
+- name: Symlink Keycloak for future version update
+  file: src=/opt/keycloak/{{ keycloak_version }} dest=/opt/keycloak/current state=link
+
+- name: Extracting keycloak tar
+  unarchive:
+    dest: /opt/keycloak/current/
+    src: "{{ source_dir }}/keycloak-{{ keycloak_version }}.tar.gz"
+    extra_opts: [--strip-components=1]
+    remote_src: yes
+
+- name: Setting keycloak permission to the folder
+  file: dest=/opt/keycloak/ owner=keycloak group=keycloak recurse=yes
+
+- name: Setting required permission for keycloak standalone directory
+  file: dest=/opt/keycloak/current/standalone mode=u=rwX,g=,o=
+
+- name: Extracting mysql java connector tar file
+  unarchive:
+    src: "{{ source_dir }}/{{ mysql_connector_tarfile }}"
+    dest: "{{ source_dir }}"
+    remote_src: yes
+
+- name: copying jar file to keycloak folder
+  copy:
+    src: "{{ source_dir }}/mysql-connector-java-{{ connector_version }}/mysql-connector-java-{{ connector_version }}.jar"
+    dest: /opt/keycloak/current/mysql-connector-java-{{ connector_version }}.jar
+    remote_src: yes
+
+- name: Import self signed certificate to keytool truststore
+  java_cert:
+    cert_url: "{{ ldaps_host_name }}"
+    cert_port: "{{ ldaps_port }}"
+    keystore_path: /opt/keycloak/current/cert/truststore.jks
+    keystore_pass: "{{ truststore_password }}"
+    keystore_create: yes
+    state: present 
+  when: ldaps_selfsigned_ssl_import == True
+
+- name: Copy custom theme folder to Keycloak servers
+  copy: src=paitheme/ dest=/opt/keycloak/current/themes/paitheme/ owner=keycloak 
+
+- name: Adding mysql module for Keycloak jboss
+  command: /opt/keycloak/current/bin/jboss-cli.sh --command="module add --name=org.mysql  --dependencies=javax.api,javax.transaction.api --resources=/opt/keycloak/current/mysql-connector-java-{{ connector_version }}.jar"
+
+- name: Executing Keycloak jboss commands for adding configurations
+  become: yes
+  become_method: sudo
+  become_flags: "-u keycloak"
+  command: "{{ item}}"
+  with_items:
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=datasources/jdbc-driver=mysql:add(driver-name=mysql,driver-module-name=org.mysql,driver-class-name=com.mysql.jdbc.Driver)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=datasources/data-source=KeycloakDS:remove'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=datasources/data-source=KeycloakDS:add(driver-name=mysql,enabled=true,use-java-context=true,connection-url="jdbc:mysql://{{ mysql_hostname }}:{{ mysql_port }}/{{ keycloak_mysql_db_name }}?useSSL=false&amp;useLegacyDatetimeCode=false&amp;serverTimezone=Europe/Amsterdam&amp;characterEncoding=UTF-8",jndi-name="java:/jboss/datasources/KeycloakDS",user-name={{ keycloak_mysql_username }},password="{{ keycloak_mysql_password }}",valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLValidConnectionChecker,validate-on-match=true,exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLValidConnectionChecker)'
+    - /opt/keycloak/current/bin/add-user-keycloak.sh -u "{{ keycloak_admin }}" -p "{{ keycloak_pass }}" -r master
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=proxy-address-forwarding,value=true)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/socket-binding-group=standard-sockets/socket-binding=proxy-https:add(port=443)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=undertow/server=default-server/http-listener=default:write-attribute(name=redirect-socket,value=proxy-https)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/theme=defaults:write-attribute(name=welcomeTheme,value="paitheme")'
+
+- name: Adding self signed certificate trsutstore configuration to keycloak
+  become: yes
+  become_method: sudo
+  become_flags: "-u keycloak"
+  command: "{{ item}}"
+  with_items:
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore:add'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore/provider=file:add(enabled=true)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore/provider=file/:map-put(name=properties,key=file, value=/opt/keycloak/current/cert/truststore.jks)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore/provider=file/:map-put(name=properties,key=password, value={{ truststore_password }})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore/provider=file/:map-put(name=properties,key=hostname-verification-policy, value=WILDCARD)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config={{ standalone_config_file }},/subsystem=keycloak-server/spi=truststore/provider=file/:map-put(name=properties,key=disabled, value=false)'
+  when: ldaps_selfsigned_ssl_import == True
+
+- name: Enabling JDBC PING to the keycloak configuration
+  become: yes
+  become_method: sudo
+  become_flags: "-u keycloak"
+  command: "{{ item}}"
+  with_items:
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/interface=private:write-attribute(name=nic, value={{ ansible_default_ipv4.interface }})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/interface=private:undefine-attribute(name=inet-address)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp:remove()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/transport=TCP:add(socket-binding="jgroups-tcp")'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=JDBC_PING: add(data-source="KeycloakDS", properties=[initialize_sql="CREATE TABLE IF NOT EXISTS JGROUPSPING (own_addr varchar(200) NOT NULL, cluster_name varchar(200) NOT NULL, updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, ping_data varbinary(5000) DEFAULT NULL, PRIMARY KEY (own_addr, cluster_name)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin",remove_old_coords_on_view_change="true",remove_all_data_on_view_change="true"])'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=MERGE3:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=FD_SOCK:add(socket-binding="jgroups-tcp-fd"'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=FD_ALL:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=VERIFY_SUSPECT:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=pbcast.NAKACK2:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=UNICAST3:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=pbcast.STABLE:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=pbcast.GMS/property=max_join_attempts:add(value=5)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=MFC:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/stack=tcp/protocol=FRAG3:add()'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=jgroups/channel=ee:write-attribute(name=stack, value=tcp)'
+  when: standalone_ha_installation == True
+
+- name: Enabling distributed cache in keycloak configuration
+  become: yes
+  become_method: sudo
+  become_flags: "-u keycloak"
+  command: "{{ item}}"
+  with_items:
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/local-cache=users:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/replicated-cache=work/component=expiration:add(max-idle="3600000")'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/replicated-cache=work:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=sessions:write-attribute(name=owners,value=${env.DIST_CACHE_SHARD_COUNT:2})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=sessions:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=clientSessions:write-attribute(name=owners,value=${env.DIST_CACHE_SHARD_COUNT:2})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=clientSessions:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=loginFailures:write-attribute(name=owners,value=1)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=authenticationSessions:write-attribute(name=owners,value=1)'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=authenticationSessions:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineSessions:write-attribute(name=owners,value=${env.DIST_CACHE_SHARD_COUNT:2})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineSessions:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineClientSessions:write-attribute(name=owners,value=${env.DIST_CACHE_SHARD_COUNT:2})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=offlineClientSessions:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=actionTokens:write-attribute(name=owners,value=${env.DIST_CACHE_SHARD_COUNT:2})'
+    - /opt/keycloak/current/bin/jboss-cli.sh 'embed-server --server-config=standalone-ha.xml,/subsystem=infinispan/cache-container=keycloak/distributed-cache=actionTokens:write-attribute(name=statistics-enabled,value=${env.ENABLE_INFINISPAN_STATISTICS:false})'
+  when: standalone_ha_installation == True
+
+- name: Adding systemctl file for keycloack
+  blockinfile:
+    path: /etc/systemd/system/keycloak.service
+    create: yes
+    block: |
+      [Unit]
+      Description=Keycloak
+      After=network.target
+       
+      [Service]
+      Type=idle
+      User=keycloak
+      Group=keycloak
+      ExecStart=/opt/keycloak/current/bin/standalone.sh --server-config={{ standalone_config_file }} -b 0.0.0.0 -Dkeycloak.profile.feature.upload_scripts=enabled -Dkeycloak.profile.feature.admin_fine_grained_authz=enabled
+      TimeoutStartSec=600
+      TimeoutStopSec=600
+       
+      [Install]
+      WantedBy=multi-user.target
+  when: standalone_ha_installation == True
+  
+- name: Final setting up of keycloak permission to the folder
+  file: dest=/opt/keycloak/ owner=keycloak group=keycloak recurse=yes
+
+- name: Enable and Start Keycloak service
+  systemd: name=keycloak state=started daemon_reload=yes enabled=yes

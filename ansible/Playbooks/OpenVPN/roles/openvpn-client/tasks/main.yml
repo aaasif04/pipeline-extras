@@ -1,0 +1,103 @@
+---
+- name: create vpnusers group
+  group: name=vpnusers state=present
+
+- name: Create the users list
+  set_fact: 
+    users_list: "{{ vpn_username.split(',') }}"
+
+- name: Create users with auto generated password
+  user:
+    name: "{{ item }}"
+    password: "{{ lookup('password', './credentials/' + item + '/password.txt encrypt=md5_crypt') }}"
+    createhome: no
+    system: yes
+    group: vpnusers
+  with_items: "{{ users_list }}"
+  register: create_users_changed
+
+- name: Create changed users list
+  set_fact:
+    create_users: "{{ create_users | default([]) + [item.item] }}"
+  when: item.changed
+  with_items: "{{ create_users_changed.results }}"
+  no_log: True
+
+- name: Generating user certificates
+  shell: source ./vars && export KEY_CN={{ item }} && ./build-key --batch {{ item }}
+  args:
+    chdir: /etc/openvpn/easy-rsa/
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Copy skelton.conf to client specific ovpn
+  copy: 
+    src: /etc/openvpn/sampleconf/skelton.conf
+    dest: /etc/openvpn/sampleconf/{{ item }}.ovpn
+    owner: root
+    mode: 0644
+    remote_src: yes
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Register CA certificate
+  shell: cat /etc/openvpn/ca.crt
+  register: ca_contents
+  when: create_users_changed.changed
+
+- name: Add CA certificate to client ovpn file
+  lineinfile:
+    dest: /etc/openvpn/sampleconf/{{ item }}.ovpn
+    insertafter: '^<ca>'
+    line: "{{ ca_contents.stdout }}"
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Register user certificate
+  shell: sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' /etc/openvpn/easy-rsa/keys/{{ item }}.crt
+  register: crt_contents
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Add user certificate to client ovpn file.[Due to security, logging is false. So item will display as none]
+  lineinfile:
+    dest: /etc/openvpn/sampleconf/{{ item.item }}.ovpn
+    insertafter: '^<cert>'
+    line: "{{ item.stdout}}"
+  when: item.item in create_users | default([])
+  with_items: "{{ crt_contents.results }}"
+  no_log: True
+
+- name: Register user certificate key
+  shell: cat /etc/openvpn/easy-rsa/keys/{{ item }}.key
+  register: key_contents
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Add user key certificate to client ovpn file.[Due to security, logging is false. So item will display as none]
+  lineinfile:
+    dest: /etc/openvpn/sampleconf/{{ item.item }}.ovpn
+    insertafter: '^<key>'
+    line: "{{ item.stdout }}"
+  when: item.item in create_users | default([])
+  with_items: "{{ key_contents.results }}"
+  no_log: True
+
+- name: Register TLS cryprt certificate
+  shell: cat /etc/openvpn/paivpn.tlsauth
+  register: tls_contents
+  when: create_users_changed.changed
+
+- name: Add TLS Crypt certificate to client ovpn file
+  lineinfile:
+    dest: /etc/openvpn/sampleconf/{{ item }}.ovpn
+    insertafter: '^<tls-crypt>'
+    line: "{{ tls_contents.stdout }}"
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"
+
+- name: Fetch the client ovn files 
+  run_once: yes
+  fetch: src=/etc/openvpn/sampleconf/{{ item }}.ovpn dest={{ playbook_dir }}/credentials/{{ item }}/{{ item }}.ovpn flat=yes
+  when: item in create_users | default([])
+  with_items: "{{ users_list }}"

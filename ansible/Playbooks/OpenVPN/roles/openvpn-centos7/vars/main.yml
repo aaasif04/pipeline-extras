@@ -1,0 +1,10 @@
+---
+openvpn_network: 172.30.0.0
+aws_vpc_network: 10.30.0.0
+
+KEY_COUNTRY: IN
+KEY_PROVINCE: Kerala
+KEY_CITY: Cochin
+KEY_ORG: "Prevalent AI"
+KEY_EMAIL: "support@prevalent.ai"
+KEY_CN: "cear-uat-vpn.prevalent.ai"

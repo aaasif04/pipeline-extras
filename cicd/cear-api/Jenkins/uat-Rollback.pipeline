@@ -1,0 +1,29 @@
+space='uat'
+appname='cear-api'
+rollbackVersion = '0.0.0'
+s3Artifactory = 'lsm-artifactory'
+pipeline{
+    agents any
+    stages{
+        stage(getVersion){
+            steps{
+                script{
+                    rollbackVersion = sh (script: "aws s3 ls s3://${s3Artifactory}/${space}/${appname} --recursive |sort |tail -2 |head -1 |awk -F \"/\" \'{print \$3}\'", returnStdout: true).trim()
+                }
+            }
+
+        }
+        stage ('deploy'){
+            steps{
+                ansiblePlaybook(
+                  become: true,
+	              disableHostKeyChecking: true,
+	              installation: 'ansible',
+	              inventory: './pai-infra-devops/cicd/cear-api/Ansible/inventory_file',
+	              playbook: './pai-infra-devops/cicd/cear-api/Ansible/uat-deploy.yaml',
+	              extraVars: [version: "${rollbackVersion}",]
+                )
+            }
+        }
+    }
+}
